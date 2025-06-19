@@ -3,6 +3,7 @@ import re
 import time
 import asyncio
 import logging
+import mimetypes  # Reemplazo para imghdr
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -411,4 +412,7 @@ def panel():
     )
 
 if __name__ == '__main__':
+    # Configurar mimetypes como reemplazo de imghdr
+    mimetypes.init()
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
