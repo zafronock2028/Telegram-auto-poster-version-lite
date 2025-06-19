@@ -3,12 +3,30 @@ import re
 import time
 import asyncio
 import logging
-import mimetypes  # Reemplazo para imghdr
+import sys
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import ChatBannedRights
+
+# Parche para imghdr en Python 3.13+
+if sys.version_info >= (3, 13):
+    try:
+        import filetype
+        import imghdr
+        
+        # Implementar parche para imghdr.what usando filetype
+        def patched_what(filepath):
+            kind = filetype.guess(filepath)
+            if kind and kind.mime.startswith('image/'):
+                return kind.extension
+            return None
+        
+        imghdr.what = patched_what
+        sys.modules['imghdr'] = imghdr
+    except ImportError:
+        pass
 
 # Configuración inicial
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -412,7 +430,4 @@ def panel():
     )
 
 if __name__ == '__main__':
-    # Configurar mimetypes como reemplazo de imghdr
-    mimetypes.init()
-    
     app.run(host='0.0.0.0', port=5000, debug=True)
