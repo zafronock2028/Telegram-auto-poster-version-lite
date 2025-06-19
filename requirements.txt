@@ -1,4 +1,4 @@
-Flask==2.3.2
-telethon==1.34.0  # Actualizado a la última versión
+Flask==3.0.3
+telethon==1.35.0
 filetype==1.2.0
-Pillow==10.3.0    # Nueva dependencia para manejo de imágenes
+Pillow==10.4.0  # Versión compatible con Python 3.13
