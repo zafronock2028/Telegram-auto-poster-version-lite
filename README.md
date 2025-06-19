@@ -1,0 +1,1 @@
+# Telegram-auto-poster-version-lite
