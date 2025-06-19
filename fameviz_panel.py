@@ -219,13 +219,6 @@ async def publicar_en_grupos_internal():
         if 'client' in locals():
             await client.disconnect()
 
-# Funciones asíncronas envueltas para ejecución síncrona
-def crear_sesion_wrapper():
-    return asyncio.run(crear_sesion_async())
-
-def reenviar_codigo_wrapper():
-    return asyncio.run(reenviar_codigo_async())
-
 # Rutas Flask
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -262,13 +255,9 @@ def crear_sesion():
         return redirect(url_for('index'))
     
     if request.method == 'POST':
-        return crear_sesion_wrapper()
-    
-    # GET: Mostrar formulario para ingresar código
-    try:
+        return asyncio.run(crear_sesion_async())
+    else:
         return asyncio.run(crear_sesion_async_get())
-    except Exception as e:
-        return render_template('fameviz_verification.html', error=f"Error: {str(e)}")
 
 async def crear_sesion_async_get():
     client = TelegramClient(
@@ -278,7 +267,8 @@ async def crear_sesion_async_get():
     )
     
     await client.connect()
-    await client.send_code_request(session['telefono'])
+    sent_code = await client.send_code_request(session['telefono'])
+    session['phone_code_hash'] = sent_code.phone_code_hash  # Almacenar hash
     await client.disconnect()
     return render_template('fameviz_verification.html', error=None)
 
@@ -295,11 +285,18 @@ async def crear_sesion_async():
     
     if not await client.is_user_authorized():
         if not codigo:
-            await client.send_code_request(session['telefono'])
+            # Reenviar código si no se proporciona
+            sent_code = await client.send_code_request(session['telefono'])
+            session['phone_code_hash'] = sent_code.phone_code_hash
             return render_template('fameviz_verification.html', error="✅ Código enviado. Revisa Telegram")
         
         try:
-            await client.sign_in(session['telefono'], code=codigo)
+            # Usar el phone_code_hash almacenado en la sesión
+            await client.sign_in(
+                phone=session['telefono'],
+                code=codigo,
+                phone_code_hash=session['phone_code_hash']  # Clave para solucionar el error
+            )
         except Exception as e:
             error_msg = str(e)
             if "PHONE_NUMBER_UNOCCUPIED" in error_msg:
@@ -310,18 +307,21 @@ async def crear_sesion_async():
                 error_msg = "Demasiados intentos. Espera antes de reintentar"
             return render_template('fameviz_verification.html', error=error_msg)
     
+    # Guardar sesión
     session_str = client.session.save()
     with open(app.config['SESSION_FILE'], 'w') as f:
         f.write(session_str)
     
     await client.disconnect()
+    # Limpiar el hash de la sesión
+    session.pop('phone_code_hash', None)
     return redirect(url_for('panel'))
 
 @app.route('/reenviar_codigo', methods=['GET'])
 def reenviar_codigo():
     if 'telefono' not in session:
         return redirect(url_for('index'))
-    return reenviar_codigo_wrapper()
+    return asyncio.run(reenviar_codigo_async())
 
 async def reenviar_codigo_async():
     client = TelegramClient(
@@ -331,7 +331,8 @@ async def reenviar_codigo_async():
     )
     
     await client.connect()
-    await client.send_code_request(session['telefono'])
+    sent_code = await client.send_code_request(session['telefono'])
+    session['phone_code_hash'] = sent_code.phone_code_hash  # Actualizar hash
     await client.disconnect()
     return render_template('fameviz_verification.html', error="✅ Código reenviado. Revisa Telegram")
 
