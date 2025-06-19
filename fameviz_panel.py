@@ -5,9 +5,8 @@ import asyncio
 import logging
 import sys
 import types
-import imghdr  # Para versiones anteriores
 
-# Parche mejorado para imghdr en Python 3.13+
+# Parche para imghdr en Python 3.13+
 if sys.version_info >= (3, 13):
     try:
         from PIL import Image
@@ -18,29 +17,30 @@ if sys.version_info >= (3, 13):
                     with Image.open(filepath) as img:
                         return img.format.lower()
                 except Exception:
-                    # Fallback a la implementación tradicional
-                    return imghdr.what(filepath)
+                    # Implementación de respaldo
+                    if filepath.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                        return filepath.split('.')[-1]
+                    return None
         
         sys.modules['imghdr'] = ImghdrModule('imghdr')
-        print("✅ Parche para imghdr aplicado con éxito usando Pillow")
+        print("✅ Parche para imghdr aplicado")
     except ImportError:
-        print("⚠️ Advertencia: Pillow no está instalado. Usando implementación mínima")
+        print("⚠️ Pillow no está instalado. Usando implementación mínima")
         class ImghdrModule(types.ModuleType):
             def what(self, filepath):
-                # Implementación mínima compatible
                 if filepath.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
                     return filepath.split('.')[-1]
                 return None
         sys.modules['imghdr'] = ImghdrModule('imghdr')
 else:
-    import imghdr  # Para versiones anteriores de Python
+    import imghdr
 
 # Ahora importamos telethon
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import ChatBannedRights
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session
 
 # Configuración inicial
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -55,7 +55,7 @@ app.config['FAMEVIZ_IMAGES'] = 'static/fameviz_images'
 app.config['HISTORIAL_GRUPOS'] = 'grupos_unidos.txt'
 app.config['HISTORIAL_PUBLICACIONES'] = 'historial_publicaciones.txt'
 
-# Palabras prohibidas para validación
+# Palabras prohibidas
 PALABRAS_PROHIBIDAS = [
     'binance', 'amazon', 'otro', 'oferta', 'crypto', 'bitcoin', 'ethereum',
     'nft', 'forex', 'trading', 'inversión', 'comision', 'cripto', 'cryptomoneda',
@@ -76,80 +76,16 @@ panel_activo = True
 
 # Textos predefinidos
 TEXTOS_PREDEFINIDOS = [
-    # Texto 1
-    "🚀 ¿Cansado de ver videos sin ganar nada?\n"
-    "💸 Hoy puedes convertir tu tiempo en dinero REAL.\n"
-    "🔥 Con FAMEVIZ:\n"
-    "✅ Te pagan por ver videos 📲\n"
-    "✅ Ganas por invitar personas\n"
-    "✅ Sistema automático 24/7\n"
-    "📈 Mientras más vistas, más ganas.\n"
-    "🌐 Regístrate: {{codigo}}\n"
-    "📩 Ayuda: @ganaconluis",
-
-    # Texto 2
-    "🔥 Gana desde casa con videos\n"
-    "💰 FameViz paga todos los días\n"
-    "✅ No necesitas vender\n"
-    "✅ No necesitas seguidores\n"
-    "📲 Solo ver y compartir\n"
-    "🌐 Únete ahora: {{codigo}}",
-
-    # Texto 3
-    "🤖 El algoritmo ya no manda...\n"
-    "📢 Tú decides cuánto ganar\n"
-    "💸 FameViz convierte tus vistas en dinero\n"
-    "💥 Comienza hoy con tu código: {{codigo}}",
-
-    # Texto 4
-    "🎯 ¿Quieres ganar $200, $500 o más por semana?\n"
-    "✅ FameViz es el sistema\n"
-    "💼 Ve videos\n"
-    "📣 Invita con tu link\n"
-    "💵 Cobra diario\n"
-    "Entra ahora 👉 {{codigo}}",
-
-    # Texto 5
-    "💸 Te pagan por ver videos\n"
-    "📲 Te pagan por invitar\n"
-    "✅ Sistema automático\n"
-    "🔐 No necesitas saber de tecnología\n"
-    "👉 Regístrate aquí: {{codigo}}",
-
-    # Texto 6
-    "🔥 Lo que haces gratis ahora…\n"
-    "¡Te puede pagar!\n"
-    "✅ Miras videos\n"
-    "✅ Ganas dinero\n"
-    "🌟 FameViz es el futuro\n"
-    "Regístrate ahora 👉 {{codigo}}",
-
-    # Texto 7
-    "💥 Si ves esto, es tu señal.\n"
-    "Gana con FameViz hoy mismo\n"
-    "📲 Te pagan por usar redes\n"
-    "📈 ¡No esperes más!\n"
-    "👉 Empieza ya: {{codigo}}",
-
-    # Texto 8
-    "🚨 Alerta de ingreso extra:\n"
-    "FameViz paga por vistas\n"
-    "💸 Tú miras, tú cobras\n"
-    "✅ Sin jefes\n"
-    "✅ Sin horarios\n"
-    "🌐 Aquí el link: {{codigo}}",
-
-    # Texto 9
-    "📱 Gana comisiones viendo videos\n"
-    "✅ Reales, fáciles y automáticas\n"
-    "🔥 FameViz lo hace posible\n"
-    "Regístrate con tu código aquí: {{codigo}}",
-
-    # Texto 10
-    "😎 Sin experiencia, sin complicaciones\n"
-    "Solo necesitas conexión y ganas\n"
-    "💰 FameViz te paga por ver videos\n"
-    "Únete ahora 👉 {{codigo}}"
+    "🚀 ¿Cansado de ver videos sin ganar nada?\n💸 Hoy puedes convertir tu tiempo en dinero REAL.\n🔥 Con FAMEVIZ:\n✅ Te pagan por ver videos 📲\n✅ Ganas por invitar personas\n✅ Sistema automático 24/7\n📈 Mientras más vistas, más ganas.\n🌐 Regístrate: {{codigo}}\n📩 Ayuda: @ganaconluis",
+    "🔥 Gana desde casa con videos\n💰 FameViz paga todos los días\n✅ No necesitas vender\n✅ No necesitas seguidores\n📲 Solo ver y compartir\n🌐 Únete ahora: {{codigo}}",
+    "🤖 El algoritmo ya no manda...\n📢 Tú decides cuánto ganar\n💸 FameViz convierte tus vistas en dinero\n💥 Comienza hoy con tu código: {{codigo}}",
+    "🎯 ¿Quieres ganar $200, $500 o más por semana?\n✅ FameViz es el sistema\n💼 Ve videos\n📣 Invita con tu link\n💵 Cobra diario\nEntra ahora 👉 {{codigo}}",
+    "💸 Te pagan por ver videos\n📲 Te pagan por invitar\n✅ Sistema automático\n🔐 No necesitas saber de tecnología\n👉 Regístrate aquí: {{codigo}}",
+    "🔥 Lo que haces gratis ahora…\n¡Te puede pagar!\n✅ Miras videos\n✅ Ganas dinero\n🌟 FameViz es el futuro\nRegístrate ahora 👉 {{codigo}}",
+    "💥 Si ves esto, es tu señal.\nGana con FameViz hoy mismo\n📲 Te pagan por usar redes\n📈 ¡No esperes más!\n👉 Empieza ya: {{codigo}}",
+    "🚨 Alerta de ingreso extra:\nFameViz paga por vistas\n💸 Tú miras, tú cobras\n✅ Sin jefes\n✅ Sin horarios\n🌐 Aquí el link: {{codigo}}",
+    "📱 Gana comisiones viendo videos\n✅ Reales, fáciles y automáticas\n🔥 FameViz lo hace posible\nRegístrate con tu código aquí: {{codigo}}",
+    "😎 Sin experiencia, sin complicaciones\nSolo necesitas conexión y ganas\n💰 FameViz te paga por ver videos\nÚnete ahora 👉 {{codigo}}"
 ]
 
 # Funciones auxiliares
@@ -175,7 +111,7 @@ def cargar_grupos_publicables():
                     grupos.append((nombre, enlace))
         return grupos
     except Exception as e:
-        logger.error(f"Error cargando grupos publicables: {e}")
+        logger.error(f"Error cargando grupos: {e}")
         return []
 
 def guardar_publicacion(grupo, estado):
@@ -193,35 +129,28 @@ async def verificar_permisos(client, grupo):
 
 def validar_texto(texto):
     texto = texto.lower()
-    for palabra in PALABRAS_PROHIBIDAS:
-        if palabra in texto:
-            return False
-    return True
+    return not any(palabra in texto for palabra in PALABRAS_PROHIBIDAS)
 
 def obtener_imagenes_disponibles():
-    imagenes = []
-    for file in os.listdir(app.config['FAMEVIZ_IMAGES']):
-        if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            imagenes.append(file)
-    return imagenes
+    return [f for f in os.listdir(app.config['FAMEVIZ_IMAGES']) 
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
 
 # Funciones principales
 async def publicar_en_grupos_internal():
-    global estado_actual, progreso_detalles, mensaje_publicacion, imagen_publicacion, publicando, panel_activo
+    global estado_actual, progreso_detalles, publicando
     
     try:
-        if not panel_activo:
+        if not panel_activo or not mensaje_publicacion:
             return
         
         publicando = True
-        progreso_detalles = []
+        progreso_detalles = ["Iniciando proceso de publicación..."]
         estado_actual = "Preparando publicación..."
-        progreso_detalles.append("Iniciando proceso de publicación...")
         
-        # Validar texto final
+        # Validar texto
         if not validar_texto(mensaje_publicacion):
-            progreso_detalles.append("❌ ERROR: El texto contiene palabras prohibidas")
-            estado_actual = "Publicación bloqueada - Contenido no permitido"
+            progreso_detalles.append("❌ ERROR: Texto contiene palabras prohibidas")
+            estado_actual = "Publicación bloqueada"
             publicando = False
             return
             
@@ -237,35 +166,31 @@ async def publicar_en_grupos_internal():
         await client.start()
         
         grupos = cargar_grupos_publicables()
-        total_publicados = 0
         total_grupos = len(grupos)
         
         if total_grupos == 0:
-            estado_actual = "No hay grupos disponibles para publicar"
-            progreso_detalles.append("⚠️ No se encontraron grupos válidos para publicar")
+            estado_actual = "No hay grupos disponibles"
+            progreso_detalles.append("⚠️ No se encontraron grupos válidos")
             publicando = False
             return
         
-        # Publicación optimizada
+        total_publicados = 0
         for i, grupo in enumerate(grupos):
             if not publicando:
                 break
                 
             nombre, enlace = grupo
             username = enlace.split('/')[-1]
-            
             estado_actual = f"Publicando ({i+1}/{total_grupos}): {nombre[:20]}..."
             
             try:
                 entity = await client.get_entity(username)
                 
-                # Verificar permisos
                 if not await verificar_permisos(client, entity):
                     guardar_publicacion(grupo, "Sin permisos")
                     progreso_detalles.append(f"🚫 Sin permisos en: {nombre}")
                     continue
                 
-                # Enviar publicación
                 if imagen_publicacion and os.path.exists(imagen_publicacion):
                     await client.send_file(entity, imagen_publicacion, caption=mensaje_publicacion)
                 else:
@@ -277,54 +202,48 @@ async def publicar_en_grupos_internal():
                 
                 # Espera entre publicaciones
                 if i < len(grupos) - 1 and publicando:
-                    espera = 10
-                    await asyncio.sleep(espera)
+                    await asyncio.sleep(10)
                     
             except Exception as e:
                 guardar_publicacion(grupo, f"Error: {type(e).__name__}")
                 progreso_detalles.append(f"❌ Error en {nombre}: {str(e)}")
         
-        await client.disconnect()
         estado_actual = f"Publicación completada: {total_publicados}/{total_grupos} grupos"
-        progreso_detalles.append("✅ Publicación completada correctamente")
+        progreso_detalles.append("✅ Publicación completada")
     except Exception as e:
         estado_actual = f"Error en publicación: {str(e)}"
-        progreso_detalles.append(f"❌❌ ERROR EN PUBLICACIÓN: {str(e)}")
+        progreso_detalles.append(f"❌❌ ERROR: {str(e)}")
     finally:
         publicando = False
+        if 'client' in locals():
+            await client.disconnect()
 
 # Rutas Flask
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # Si ya tiene sesión configurada, ir al panel
     if os.path.exists(app.config['SESSION_FILE']) and os.path.exists(app.config['REFERRAL_FILE']):
         return redirect(url_for('panel'))
     
-    # Mostrar formulario inicial
     if request.method == 'POST':
         telefono = request.form.get('telefono')
         api_id = request.form.get('api_id')
         api_hash = request.form.get('api_hash')
         referral = request.form.get('referral')
         
-        # Validar campos
         if not all([telefono, api_id, api_hash, referral]):
             return render_template('fameviz_index.html', error="Todos los campos son obligatorios")
         
         if 'fameviz' not in referral.lower():
             return render_template('fameviz_index.html', error="Enlace de referido no válido")
         
-        # Guardar datos de sesión temporalmente
         session['telefono'] = telefono
         session['api_id'] = api_id
         session['api_hash'] = api_hash
         session['referral'] = referral
         
-        # Guardar referral
         with open(app.config['REFERRAL_FILE'], 'w') as f:
             f.write(referral)
         
-        # Intentar crear sesión
         return redirect(url_for('crear_sesion'))
     
     return render_template('fameviz_index.html', error=None)
@@ -336,7 +255,6 @@ async def crear_sesion():
     
     if request.method == 'POST':
         codigo = request.form.get('codigo')
-        phone_code_hash = session.get('phone_code_hash')
         
         try:
             client = TelegramClient(
@@ -348,45 +266,31 @@ async def crear_sesion():
             await client.connect()
             
             if not await client.is_user_authorized():
-                # Si no tenemos código, intentamos enviar uno primero
                 if not codigo:
-                    sent_code = await client.send_code_request(session['telefono'])
-                    session['phone_code_hash'] = sent_code.phone_code_hash
+                    await client.send_code_request(session['telefono'])
                     return render_template('fameviz_verification.html', error="✅ Código enviado. Revisa Telegram")
                 
                 try:
-                    # Intentar iniciar sesión con el código
-                    await client.sign_in(
-                        phone=session['telefono'],
-                        code=codigo,
-                        phone_code_hash=session.get('phone_code_hash', '')
-                    )
+                    await client.sign_in(session['telefono'], code=codigo)
                 except Exception as e:
-                    # Manejar errores específicos
-                    error_msg = f"Error: {str(e)}"
-                    if "PHONE_NUMBER_UNOCCUPIED" in str(e):
+                    error_msg = str(e)
+                    if "PHONE_NUMBER_UNOCCUPIED" in error_msg:
                         error_msg = "Número no registrado en Telegram"
-                    elif "PHONE_CODE_INVALID" in str(e):
+                    elif "PHONE_CODE_INVALID" in error_msg:
                         error_msg = "Código inválido o expirado"
-                    elif "FLOOD_WAIT" in str(e):
+                    elif "FLOOD_WAIT" in error_msg:
                         error_msg = "Demasiados intentos. Espera antes de reintentar"
-                    elif "SESSION_PASSWORD_NEEDED" in str(e):
-                        error_msg = "Se requiere verificación en dos pasos (2FA)"
                     return render_template('fameviz_verification.html', error=error_msg)
             
-            # Guardar sesión
             session_str = client.session.save()
             with open(app.config['SESSION_FILE'], 'w') as f:
                 f.write(session_str)
             
             await client.disconnect()
-            # Limpiar datos temporales
-            session.pop('phone_code_hash', None)
             return redirect(url_for('panel'))
             
         except Exception as e:
-            error_msg = f"Error: {str(e)}"
-            return render_template('fameviz_verification.html', error=error_msg)
+            return render_template('fameviz_verification.html', error=f"Error: {str(e)}")
     
     # GET: Mostrar formulario para ingresar código
     try:
@@ -397,12 +301,11 @@ async def crear_sesion():
         )
         
         await client.connect()
-        sent_code = await client.send_code_request(session['telefono'])
-        session['phone_code_hash'] = sent_code.phone_code_hash
+        await client.send_code_request(session['telefono'])
         await client.disconnect()
         return render_template('fameviz_verification.html', error=None)
     except Exception as e:
-        return render_template('fameviz_verification.html', error=f"Error inicial: {str(e)}")
+        return render_template('fameviz_verification.html', error=f"Error: {str(e)}")
 
 @app.route('/reenviar_codigo', methods=['GET'])
 async def reenviar_codigo():
@@ -417,18 +320,16 @@ async def reenviar_codigo():
         )
         
         await client.connect()
-        sent_code = await client.send_code_request(session['telefono'])
-        session['phone_code_hash'] = sent_code.phone_code_hash
+        await client.send_code_request(session['telefono'])
         await client.disconnect()
         return render_template('fameviz_verification.html', error="✅ Código reenviado. Revisa Telegram")
     except Exception as e:
-        return render_template('fameviz_verification.html', error=f"Error al reenviar: {str(e)}")
+        return render_template('fameviz_verification.html', error=f"Error: {str(e)}")
 
 @app.route('/panel', methods=['GET', 'POST'])
 def panel():
     global mensaje_publicacion, imagen_publicacion, publicando, estado_actual, progreso_detalles
     
-    # Verificar sesión
     if not (os.path.exists(app.config['SESSION_FILE']) and os.path.exists(app.config['REFERRAL_FILE'])):
         return redirect(url_for('index'))
     
@@ -437,19 +338,16 @@ def panel():
     grupos = cargar_grupos_publicables()
     
     if request.method == 'POST':
-        # Configurar publicación
         if 'configurar_publicacion' in request.form:
             try:
                 texto_idx = int(request.form.get("texto_pred"))
                 imagen_nombre = request.form.get("imagen_pred")
                 
-                # Obtener texto y reemplazar {{codigo}}
                 texto = TEXTOS_PREDEFINIDOS[texto_idx]
                 mensaje_publicacion = texto.replace('{{codigo}}', referral)
                 
-                # Validar texto
                 if not validar_texto(mensaje_publicacion):
-                    progreso_detalles.append("❌ ERROR: El texto contiene palabras prohibidas")
+                    progreso_detalles.append("❌ ERROR: Texto contiene palabras prohibidas")
                     return render_template(
                         'fameviz_panel.html',
                         estado=estado_actual,
@@ -464,30 +362,27 @@ def panel():
                         error="El texto contiene palabras prohibidas"
                     )
                 
-                # Configurar imagen
                 if imagen_nombre:
                     imagen_publicacion = os.path.join(app.config['FAMEVIZ_IMAGES'], imagen_nombre)
                 else:
                     imagen_publicacion = ""
                 
-                progreso_detalles.append("✅ Configuración de publicación guardada")
+                progreso_detalles.append("✅ Configuración guardada")
                 
             except Exception as e:
-                progreso_detalles.append(f"❌ Error configurando publicación: {str(e)}")
+                progreso_detalles.append(f"❌ Error: {str(e)}")
         
-        # Iniciar publicación
         elif 'iniciar_publicacion' in request.form:
             if mensaje_publicacion:
                 import threading
                 threading.Thread(target=lambda: asyncio.run(publicar_en_grupos_internal())).start()
             else:
-                progreso_detalles.append("❌ Error: Mensaje de publicación vacío")
+                progreso_detalles.append("❌ Error: Mensaje vacío")
         
-        # Detener publicación
         elif 'detener_publicacion' in request.form:
             publicando = False
             estado_actual = "Publicación detenida"
-            progreso_detalles.append("⏹️ Publicación detenida por el usuario")
+            progreso_detalles.append("⏹️ Publicación detenida")
         
         return redirect(url_for('panel'))
     
@@ -506,13 +401,15 @@ def panel():
     )
 
 if __name__ == '__main__':
-    # Verificar plantillas disponibles
-    print("\n📂 Plantillas disponibles:")
+    print("Iniciando aplicación...")
+    print("Versión de Python:", sys.version)
+    print("Ruta de trabajo:", os.getcwd())
+    
     templates_dir = 'templates'
     if os.path.exists(templates_dir):
+        print("\n📂 Plantillas disponibles:")
         for file in os.listdir(templates_dir):
             print(f" - {file}")
-        print("\n🔍 Ruta absoluta de templates:", os.path.abspath(templates_dir))
     else:
         print("⚠️ Advertencia: No se encontró la carpeta 'templates'")
     
