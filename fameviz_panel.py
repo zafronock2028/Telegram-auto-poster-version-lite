@@ -5,25 +5,31 @@ import asyncio
 import logging
 import sys
 import types
-from PIL import Image  # Para el parche de imghdr
+import imghdr  # Para versiones anteriores
 
-# Aplicar parche para imghdr en Python 3.13+
+# Parche mejorado para imghdr en Python 3.13+
 if sys.version_info >= (3, 13):
     try:
+        from PIL import Image
+        
         class ImghdrModule(types.ModuleType):
             def what(self, filepath):
                 try:
                     with Image.open(filepath) as img:
                         return img.format.lower()
-                except:
-                    return None
+                except Exception:
+                    # Fallback a la implementación tradicional
+                    return imghdr.what(filepath)
         
         sys.modules['imghdr'] = ImghdrModule('imghdr')
-        print("✅ Parche para imghdr aplicado con éxito")
+        print("✅ Parche para imghdr aplicado con éxito usando Pillow")
     except ImportError:
-        print("⚠️ Advertencia: Pillow no está instalado. El parche de imágenes no funcionará")
+        print("⚠️ Advertencia: Pillow no está instalado. Usando implementación mínima")
         class ImghdrModule(types.ModuleType):
             def what(self, filepath):
+                # Implementación mínima compatible
+                if filepath.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    return filepath.split('.')[-1]
                 return None
         sys.modules['imghdr'] = ImghdrModule('imghdr')
 else:
@@ -330,6 +336,7 @@ async def crear_sesion():
     
     if request.method == 'POST':
         codigo = request.form.get('codigo')
+        phone_code_hash = session.get('phone_code_hash')
         
         try:
             client = TelegramClient(
@@ -343,12 +350,17 @@ async def crear_sesion():
             if not await client.is_user_authorized():
                 # Si no tenemos código, intentamos enviar uno primero
                 if not codigo:
-                    await client.send_code_request(session['telefono'])
+                    sent_code = await client.send_code_request(session['telefono'])
+                    session['phone_code_hash'] = sent_code.phone_code_hash
                     return render_template('fameviz_verification.html', error="✅ Código enviado. Revisa Telegram")
                 
                 try:
                     # Intentar iniciar sesión con el código
-                    await client.sign_in(session['telefono'], code=codigo)
+                    await client.sign_in(
+                        phone=session['telefono'],
+                        code=codigo,
+                        phone_code_hash=session.get('phone_code_hash', '')
+                    )
                 except Exception as e:
                     # Manejar errores específicos
                     error_msg = f"Error: {str(e)}"
@@ -358,6 +370,8 @@ async def crear_sesion():
                         error_msg = "Código inválido o expirado"
                     elif "FLOOD_WAIT" in str(e):
                         error_msg = "Demasiados intentos. Espera antes de reintentar"
+                    elif "SESSION_PASSWORD_NEEDED" in str(e):
+                        error_msg = "Se requiere verificación en dos pasos (2FA)"
                     return render_template('fameviz_verification.html', error=error_msg)
             
             # Guardar sesión
@@ -366,6 +380,8 @@ async def crear_sesion():
                 f.write(session_str)
             
             await client.disconnect()
+            # Limpiar datos temporales
+            session.pop('phone_code_hash', None)
             return redirect(url_for('panel'))
             
         except Exception as e:
@@ -381,7 +397,8 @@ async def crear_sesion():
         )
         
         await client.connect()
-        await client.send_code_request(session['telefono'])
+        sent_code = await client.send_code_request(session['telefono'])
+        session['phone_code_hash'] = sent_code.phone_code_hash
         await client.disconnect()
         return render_template('fameviz_verification.html', error=None)
     except Exception as e:
@@ -400,7 +417,8 @@ async def reenviar_codigo():
         )
         
         await client.connect()
-        await client.send_code_request(session['telefono'])
+        sent_code = await client.send_code_request(session['telefono'])
+        session['phone_code_hash'] = sent_code.phone_code_hash
         await client.disconnect()
         return render_template('fameviz_verification.html', error="✅ Código reenviado. Revisa Telegram")
     except Exception as e:
@@ -486,16 +504,6 @@ def panel():
         referral=referral,
         error=None
     )
-
-# Middleware para depuración
-@app.after_request
-def log_template_usage(response):
-    if request.endpoint == 'crear_sesion':
-        print(f"📤 Intentando cargar: fameviz_verification.html")
-        templates_dir = 'templates'
-        if os.path.exists(templates_dir):
-            print(f"📂 Contenido de templates: {os.listdir(templates_dir)}")
-    return response
 
 if __name__ == '__main__':
     # Verificar plantillas disponibles
