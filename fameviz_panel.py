@@ -245,4 +245,181 @@ def index():
             return render_template('fameviz_index.html', error="Enlace de referido no válido")
         
         session['telefono'] = telefono
-       
+        session['api_id'] = api_id
+        session['api_hash'] = api_hash
+        session['referral'] = referral
+        
+        with open(app.config['REFERRAL_FILE'], 'w') as f:
+            f.write(referral)
+        
+        return redirect(url_for('crear_sesion'))
+    
+    return render_template('fameviz_index.html', error=None)
+
+@app.route('/crear_sesion', methods=['GET', 'POST'])
+def crear_sesion():
+    if 'telefono' not in session:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        return crear_sesion_wrapper()
+    
+    # GET: Mostrar formulario para ingresar código
+    try:
+        return asyncio.run(crear_sesion_async_get())
+    except Exception as e:
+        return render_template('fameviz_verification.html', error=f"Error: {str(e)}")
+
+async def crear_sesion_async_get():
+    client = TelegramClient(
+        StringSession(),
+        int(session['api_id']),
+        session['api_hash']
+    )
+    
+    await client.connect()
+    await client.send_code_request(session['telefono'])
+    await client.disconnect()
+    return render_template('fameviz_verification.html', error=None)
+
+async def crear_sesion_async():
+    codigo = request.form.get('codigo')
+    
+    client = TelegramClient(
+        StringSession(),
+        int(session['api_id']),
+        session['api_hash']
+    )
+    
+    await client.connect()
+    
+    if not await client.is_user_authorized():
+        if not codigo:
+            await client.send_code_request(session['telefono'])
+            return render_template('fameviz_verification.html', error="✅ Código enviado. Revisa Telegram")
+        
+        try:
+            await client.sign_in(session['telefono'], code=codigo)
+        except Exception as e:
+            error_msg = str(e)
+            if "PHONE_NUMBER_UNOCCUPIED" in error_msg:
+                error_msg = "Número no registrado en Telegram"
+            elif "PHONE_CODE_INVALID" in error_msg:
+                error_msg = "Código inválido o expirado"
+            elif "FLOOD_WAIT" in error_msg:
+                error_msg = "Demasiados intentos. Espera antes de reintentar"
+            return render_template('fameviz_verification.html', error=error_msg)
+    
+    session_str = client.session.save()
+    with open(app.config['SESSION_FILE'], 'w') as f:
+        f.write(session_str)
+    
+    await client.disconnect()
+    return redirect(url_for('panel'))
+
+@app.route('/reenviar_codigo', methods=['GET'])
+def reenviar_codigo():
+    if 'telefono' not in session:
+        return redirect(url_for('index'))
+    return reenviar_codigo_wrapper()
+
+async def reenviar_codigo_async():
+    client = TelegramClient(
+        StringSession(),
+        int(session['api_id']),
+        session['api_hash']
+    )
+    
+    await client.connect()
+    await client.send_code_request(session['telefono'])
+    await client.disconnect()
+    return render_template('fameviz_verification.html', error="✅ Código reenviado. Revisa Telegram")
+
+@app.route('/panel', methods=['GET', 'POST'])
+def panel():
+    global mensaje_publicacion, imagen_publicacion, publicando, estado_actual, progreso_detalles
+    
+    if not (os.path.exists(app.config['SESSION_FILE']) and os.path.exists(app.config['REFERRAL_FILE'])):
+        return redirect(url_for('index'))
+    
+    referral = cargar_referral()
+    imagenes = obtener_imagenes_disponibles()
+    grupos = cargar_grupos_publicables()
+    
+    if request.method == 'POST':
+        if 'configurar_publicacion' in request.form:
+            try:
+                texto_idx = int(request.form.get("texto_pred"))
+                imagen_nombre = request.form.get("imagen_pred")
+                
+                texto = TEXTOS_PREDEFINIDOS[texto_idx]
+                mensaje_publicacion = texto.replace('{{codigo}}', referral)
+                
+                if not validar_texto(mensaje_publicacion):
+                    progreso_detalles.append("❌ ERROR: Texto contiene palabras prohibidas")
+                    return render_template(
+                        'fameviz_panel.html',
+                        estado=estado_actual,
+                        detalles=progreso_detalles,
+                        mensaje_pub=mensaje_publicacion,
+                        imagen_pub=imagen_publicacion,
+                        publicando=publicando,
+                        textos=enumerate(TEXTOS_PREDEFINIDOS),
+                        imagenes=imagenes,
+                        total_grupos=len(grupos),
+                        referral=referral,
+                        error="El texto contiene palabras prohibidas"
+                    )
+                
+                if imagen_nombre:
+                    imagen_publicacion = os.path.join(app.config['FAMEVIZ_IMAGES'], imagen_nombre)
+                else:
+                    imagen_publicacion = ""
+                
+                progreso_detalles.append("✅ Configuración guardada")
+                
+            except Exception as e:
+                progreso_detalles.append(f"❌ Error: {str(e)}")
+        
+        elif 'iniciar_publicacion' in request.form:
+            if mensaje_publicacion:
+                import threading
+                threading.Thread(target=lambda: asyncio.run(publicar_en_grupos_internal())).start()
+            else:
+                progreso_detalles.append("❌ Error: Mensaje vacío")
+        
+        elif 'detener_publicacion' in request.form:
+            publicando = False
+            estado_actual = "Publicación detenida"
+            progreso_detalles.append("⏹️ Publicación detenida")
+        
+        return redirect(url_for('panel'))
+    
+    return render_template(
+        'fameviz_panel.html',
+        estado=estado_actual,
+        detalles=progreso_detalles,
+        mensaje_pub=mensaje_publicacion,
+        imagen_pub=imagen_publicacion,
+        publicando=publicando,
+        textos=enumerate(TEXTOS_PREDEFINIDOS),
+        imagenes=imagenes,
+        total_grupos=len(grupos),
+        referral=referral,
+        error=None
+    )
+
+if __name__ == '__main__':
+    print("Iniciando aplicación...")
+    print("Versión de Python:", sys.version)
+    print("Ruta de trabajo:", os.getcwd())
+    
+    templates_dir = 'templates'
+    if os.path.exists(templates_dir):
+        print("\n📂 Plantillas disponibles:")
+        for file in os.listdir(templates_dir):
+            print(f" - {file}")
+    else:
+        print("⚠️ Advertencia: No se encontró la carpeta 'templates'")
+    
+    app.run(host='0.0.0.0', port=5000, debug=True)
