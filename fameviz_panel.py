@@ -5,6 +5,31 @@ import asyncio
 import logging
 import sys
 import types
+from PIL import Image  # Para el parche de imghdr
+
+# Aplicar parche para imghdr en Python 3.13+
+if sys.version_info >= (3, 13):
+    try:
+        class ImghdrModule(types.ModuleType):
+            def what(self, filepath):
+                try:
+                    with Image.open(filepath) as img:
+                        return img.format.lower()
+                except:
+                    return None
+        
+        sys.modules['imghdr'] = ImghdrModule('imghdr')
+        print("✅ Parche para imghdr aplicado con éxito")
+    except ImportError:
+        print("⚠️ Advertencia: Pillow no está instalado. El parche de imágenes no funcionará")
+        class ImghdrModule(types.ModuleType):
+            def what(self, filepath):
+                return None
+        sys.modules['imghdr'] = ImghdrModule('imghdr')
+else:
+    import imghdr  # Para versiones anteriores de Python
+
+# Ahora importamos telethon
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
@@ -467,15 +492,20 @@ def panel():
 def log_template_usage(response):
     if request.endpoint == 'crear_sesion':
         print(f"📤 Intentando cargar: fameviz_verification.html")
-        print(f"📂 Contenido de templates: {os.listdir('templates')}")
+        templates_dir = 'templates'
+        if os.path.exists(templates_dir):
+            print(f"📂 Contenido de templates: {os.listdir(templates_dir)}")
     return response
 
 if __name__ == '__main__':
     # Verificar plantillas disponibles
     print("\n📂 Plantillas disponibles:")
     templates_dir = 'templates'
-    for file in os.listdir(templates_dir):
-        print(f" - {file}")
-
-    print("\n🔍 Ruta absoluta de templates:", os.path.abspath(templates_dir))
+    if os.path.exists(templates_dir):
+        for file in os.listdir(templates_dir):
+            print(f" - {file}")
+        print("\n🔍 Ruta absoluta de templates:", os.path.abspath(templates_dir))
+    else:
+        print("⚠️ Advertencia: No se encontró la carpeta 'templates'")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
