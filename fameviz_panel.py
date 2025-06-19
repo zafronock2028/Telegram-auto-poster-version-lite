@@ -1,4 +1,3 @@
-# fameviz_panel.py
 import os
 import re
 import time
@@ -42,8 +41,83 @@ imagen_publicacion = ""
 publicando = False
 panel_activo = True
 
-# Textos predefinidos (se cargan desde fameviz_textos.py)
-from fameviz_textos import TEXTOS_PREDEFINIDOS
+# Textos predefinidos
+TEXTOS_PREDEFINIDOS = [
+    # Texto 1
+    "🚀 ¿Cansado de ver videos sin ganar nada?\n"
+    "💸 Hoy puedes convertir tu tiempo en dinero REAL.\n"
+    "🔥 Con FAMEVIZ:\n"
+    "✅ Te pagan por ver videos 📲\n"
+    "✅ Ganas por invitar personas\n"
+    "✅ Sistema automático 24/7\n"
+    "📈 Mientras más vistas, más ganas.\n"
+    "🌐 Regístrate: {{codigo}}\n"
+    "📩 Ayuda: @ganaconluis",
+
+    # Texto 2
+    "🔥 Gana desde casa con videos\n"
+    "💰 FameViz paga todos los días\n"
+    "✅ No necesitas vender\n"
+    "✅ No necesitas seguidores\n"
+    "📲 Solo ver y compartir\n"
+    "🌐 Únete ahora: {{codigo}}",
+
+    # Texto 3
+    "🤖 El algoritmo ya no manda...\n"
+    "📢 Tú decides cuánto ganar\n"
+    "💸 FameViz convierte tus vistas en dinero\n"
+    "💥 Comienza hoy con tu código: {{codigo}}",
+
+    # Texto 4
+    "🎯 ¿Quieres ganar $200, $500 o más por semana?\n"
+    "✅ FameViz es el sistema\n"
+    "💼 Ve videos\n"
+    "📣 Invita con tu link\n"
+    "💵 Cobra diario\n"
+    "Entra ahora 👉 {{codigo}}",
+
+    # Texto 5
+    "💸 Te pagan por ver videos\n"
+    "📲 Te pagan por invitar\n"
+    "✅ Sistema automático\n"
+    "🔐 No necesitas saber de tecnología\n"
+    "👉 Regístrate aquí: {{codigo}}",
+
+    # Texto 6
+    "🔥 Lo que haces gratis ahora…\n"
+    "¡Te puede pagar!\n"
+    "✅ Miras videos\n"
+    "✅ Ganas dinero\n"
+    "🌟 FameViz es el futuro\n"
+    "Regístrate ahora 👉 {{codigo}}",
+
+    # Texto 7
+    "💥 Si ves esto, es tu señal.\n"
+    "Gana con FameViz hoy mismo\n"
+    "📲 Te pagan por usar redes\n"
+    "📈 ¡No esperes más!\n"
+    "👉 Empieza ya: {{codigo}}",
+
+    # Texto 8
+    "🚨 Alerta de ingreso extra:\n"
+    "FameViz paga por vistas\n"
+    "💸 Tú miras, tú cobras\n"
+    "✅ Sin jefes\n"
+    "✅ Sin horarios\n"
+    "🌐 Aquí el link: {{codigo}}",
+
+    # Texto 9
+    "📱 Gana comisiones viendo videos\n"
+    "✅ Reales, fáciles y automáticas\n"
+    "🔥 FameViz lo hace posible\n"
+    "Regístrate con tu código aquí: {{codigo}}",
+
+    # Texto 10
+    "😎 Sin experiencia, sin complicaciones\n"
+    "Solo necesitas conexión y ganas\n"
+    "💰 FameViz te paga por ver videos\n"
+    "Únete ahora 👉 {{codigo}}"
+]
 
 # Funciones auxiliares
 def cargar_referral():
@@ -251,9 +325,9 @@ def crear_sesion():
             return redirect(url_for('panel'))
             
         except Exception as e:
-            return render_template('fameviz_verificacion.html', error=str(e))
+            return render_template('fameviz_verification.html', error=str(e))
     
-    return render_template('fameviz_verificacion.html', error=None)
+    return render_template('fameviz_verification.html', error=None)
 
 @app.route('/panel', methods=['GET', 'POST'])
 def panel():
@@ -288,7 +362,7 @@ def panel():
                         mensaje_pub=mensaje_publicacion,
                         imagen_pub=imagen_publicacion,
                         publicando=publicando,
-                        textos=TEXTOS_PREDEFINIDOS,
+                        textos=enumerate(TEXTOS_PREDEFINIDOS),
                         imagenes=imagenes,
                         total_grupos=len(grupos),
                         referral=referral,
@@ -329,7 +403,7 @@ def panel():
         mensaje_pub=mensaje_publicacion,
         imagen_pub=imagen_publicacion,
         publicando=publicando,
-        textos=TEXTOS_PREDEFINIDOS,
+        textos=enumerate(TEXTOS_PREDEFINIDOS),
         imagenes=imagenes,
         total_grupos=len(grupos),
         referral=referral,
