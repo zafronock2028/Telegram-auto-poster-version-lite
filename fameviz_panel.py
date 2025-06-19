@@ -4,29 +4,39 @@ import time
 import asyncio
 import logging
 import sys
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+import types
+
+# Aplicar parche para imghdr antes de importar telethon
+if sys.version_info >= (3, 13):
+    try:
+        # Crear un módulo imghdr de reemplazo
+        import filetype
+        
+        class ImghdrModule(types.ModuleType):
+            def what(self, filepath):
+                kind = filetype.guess(filepath)
+                if kind and kind.mime.startswith('image/'):
+                    return kind.extension
+                return None
+        
+        # Inyectar nuestro módulo imghdr personalizado
+        sys.modules['imghdr'] = ImghdrModule('imghdr')
+    except ImportError:
+        # Si filetype no está disponible, usar una implementación mínima
+        class ImghdrModule(types.ModuleType):
+            def what(self, filepath):
+                return None
+        
+        sys.modules['imghdr'] = ImghdrModule('imghdr')
+
+# Ahora importamos telethon después del parche
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import ChatBannedRights
 
-# Parche para imghdr en Python 3.13+
-if sys.version_info >= (3, 13):
-    try:
-        import filetype
-        import imghdr
-        
-        # Implementar parche para imghdr.what usando filetype
-        def patched_what(filepath):
-            kind = filetype.guess(filepath)
-            if kind and kind.mime.startswith('image/'):
-                return kind.extension
-            return None
-        
-        imghdr.what = patched_what
-        sys.modules['imghdr'] = imghdr
-    except ImportError:
-        pass
+# Resto de imports
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 
 # Configuración inicial
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
