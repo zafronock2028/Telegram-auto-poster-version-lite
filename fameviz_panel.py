@@ -52,31 +52,27 @@ async def send_telegram_code(client, phone):
     """Envía el código de verificación por Telegram"""
     try:
         logger.info(f"Enviando código a: {phone}")
-        # Intentar primero con el método por defecto (push/app), si falla forzar SMS
-        try:
-            sent_code = await client.send_code_request(phone)
-            logger.info(f"Código enviado por método por defecto")
-        except Exception as e:
-            logger.warning(f"Error con método por defecto, forzando SMS: {str(e)}")
-            sent_code = await client.send_code_request(phone, force_sms=True)
-            logger.info(f"Código enviado por SMS")
-        return sent_code
+        
+        # FORZAR SMS SI ESTAMOS EN RENDER
+        if os.environ.get('RENDER', False):
+            logger.info("Forzando SMS en entorno Render")
+            return await client.send_code_request(phone, force_sms=True)
+        
+        return await client.send_code_request(phone)
     except ApiIdInvalidError:
-        error_msg = "Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise ValueError("Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org")
     except PhoneNumberInvalidError:
-        error_msg = "Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise ValueError("Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)")
     except FloodWaitError as e:
-        error_msg = f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise ValueError(f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente")
     except Exception as e:
-        error_msg = f"Error de Telegram al enviar código: {str(e)}"
-        logger.exception(error_msg)  # Registrar el traceback completo
-        raise RuntimeError(error_msg)
+        logger.exception(f"Error de Telegram: {str(e)}")
+        # Reintentar con SMS si falla
+        try:
+            logger.warning("Reintentando con SMS...")
+            return await client.send_code_request(phone, force_sms=True)
+        except Exception as sms_error:
+            raise RuntimeError(f"Error al enviar código: {str(sms_error)}")
 
 async def sign_in_with_code(client, code, phone_code_hash):
     """Inicia sesión con el código recibido"""
@@ -84,6 +80,8 @@ async def sign_in_with_code(client, code, phone_code_hash):
         await client.sign_in(phone=client._phone, code=code, phone_code_hash=phone_code_hash)
         return client.session.save()
     except SessionPasswordNeededError:
+        # Guardar en sesión que se requiere 2FA
+        session['requires_2fa'] = True
         raise ValueError("Se requiere verificación en dos pasos (contraseña adicional)")
     except PhoneCodeInvalidError:
         raise ValueError("Código inválido")
@@ -91,6 +89,14 @@ async def sign_in_with_code(client, code, phone_code_hash):
         raise ValueError("Código expirado")
     except Exception as e:
         raise RuntimeError(f"Error al iniciar sesión: {str(e)}")
+
+async def sign_in_with_2fa(client, password):
+    """Inicia sesión con contraseña 2FA"""
+    try:
+        await client.sign_in(password=password)
+        return client.session.save()
+    except Exception as e:
+        raise RuntimeError(f"Error en verificación 2FA: {str(e)}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -161,6 +167,48 @@ def verify_code():
                               phone=phone)
     
     if request.method == 'POST':
+        # Manejar verificación 2FA si es necesario
+        if session.get('requires_2fa'):
+            password = request.form.get('password')
+            if not password:
+                return render_template('verify.html', 
+                                      error='Contraseña 2FA requerida', 
+                                      phone=phone,
+                                      requires_2fa=True)
+            
+            try:
+                session_string = run_async(sign_in_with_2fa(
+                    user_data['client'],
+                    password
+                ))
+                
+                # Guardar en sesión
+                session['user_data'] = {
+                    'phone': phone,
+                    'api_id': user_data['api_id'],
+                    'api_hash': user_data['api_hash'],
+                    'ref_link': user_data.get('ref_link', ''),
+                    'session_string': session_string
+                }
+                
+                # Limpiar y desconectar cliente
+                try:
+                    run_async(user_data['client'].disconnect())
+                except:
+                    pass
+                del verification_store[phone]
+                session.pop('requires_2fa', None)
+                
+                # Redirigir al panel
+                return redirect(url_for('panel'))
+                
+            except Exception as e:
+                logger.error(f"Error 2FA: {str(e)}")
+                return render_template('verify.html', 
+                                      error=f'Error en verificación 2FA: {str(e)}', 
+                                      phone=phone,
+                                      requires_2fa=True)
+        
         if request.form.get('resend'):
             try:
                 # Reenviar código
@@ -212,6 +260,14 @@ def verify_code():
             
         except Exception as e:
             logger.error(f"Error de verificación: {str(e)}")
+            
+            # Verificar si es error de 2FA
+            if "Se requiere verificación en dos pasos" in str(e):
+                return render_template('verify.html', 
+                                      error=str(e), 
+                                      phone=phone,
+                                      requires_2fa=True)
+            
             return render_template('verify.html', 
                                   error=f'Error de verificación: {str(e)}', 
                                   phone=phone)
