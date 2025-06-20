@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from telethon import TelegramClient
 from telethon.errors import (
     SessionPasswordNeededError, 
@@ -14,6 +14,7 @@ import asyncio
 import os
 import logging
 import threading
+import re
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -53,26 +54,34 @@ async def send_telegram_code(client, phone):
     try:
         logger.info(f"Enviando código a: {phone}")
         
-        # FORZAR SMS SI ESTAMOS EN RENDER
-        if os.environ.get('RENDER', False):
+        # Forzar SMS en Render
+        if 'RENDER' in os.environ:
             logger.info("Forzando SMS en entorno Render")
             return await client.send_code_request(phone, force_sms=True)
         
-        return await client.send_code_request(phone)
-    except ApiIdInvalidError:
-        raise ValueError("Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org")
-    except PhoneNumberInvalidError:
-        raise ValueError("Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)")
-    except FloodWaitError as e:
-        raise ValueError(f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente")
-    except Exception as e:
-        logger.exception(f"Error de Telegram: {str(e)}")
-        # Reintentar con SMS si falla
+        # Intentar primero con método normal
         try:
-            logger.warning("Reintentando con SMS...")
+            return await client.send_code_request(phone)
+        except Exception as e:
+            logger.warning(f"Error con método normal: {str(e)}. Reintentando con SMS...")
             return await client.send_code_request(phone, force_sms=True)
-        except Exception as sms_error:
-            raise RuntimeError(f"Error al enviar código: {str(sms_error)}")
+            
+    except ApiIdInvalidError:
+        error_msg = "Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    except PhoneNumberInvalidError:
+        error_msg = "Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    except FloodWaitError as e:
+        error_msg = f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    except Exception as e:
+        error_msg = f"Error de Telegram al enviar código: {str(e)}"
+        logger.exception(error_msg)
+        raise RuntimeError(error_msg)
 
 async def sign_in_with_code(client, code, phone_code_hash):
     """Inicia sesión con el código recibido"""
@@ -112,9 +121,13 @@ def index():
             errors.append("El número de teléfono es requerido")
         elif not phone.startswith('+'):
             errors.append("El número debe incluir código de país (ej: +584123456789)")
+        elif not re.match(r'^\+\d{8,15}$', phone):
+            errors.append("Número de teléfono inválido")
         
         if not api_id:
             errors.append("API ID es requerido")
+        elif not api_id.isdigit():
+            errors.append("API ID debe ser numérico")
         
         if not api_hash:
             errors.append("API Hash es requerido")
@@ -167,6 +180,22 @@ def verify_code():
                               phone=phone)
     
     if request.method == 'POST':
+        # Manejar reenvío de código
+        if request.form.get('resend'):
+            try:
+                # Reenviar código
+                sent_code = run_async(send_telegram_code(user_data['client'], phone))
+                user_data['phone_code_hash'] = sent_code.phone_code_hash
+                user_data['timestamp'] = time.time()
+                return render_template('verify.html', 
+                                      success='¡Nuevo código enviado!', 
+                                      phone=phone)
+            except Exception as e:
+                logger.error(f"Error al reenviar código: {str(e)}")
+                return render_template('verify.html', 
+                                      error=f'Error al reenviar código: {str(e)}', 
+                                      phone=phone)
+        
         # Manejar verificación 2FA si es necesario
         if session.get('requires_2fa'):
             password = request.form.get('password')
@@ -209,21 +238,7 @@ def verify_code():
                                       phone=phone,
                                       requires_2fa=True)
         
-        if request.form.get('resend'):
-            try:
-                # Reenviar código
-                sent_code = run_async(send_telegram_code(user_data['client'], phone))
-                user_data['phone_code_hash'] = sent_code.phone_code_hash
-                user_data['timestamp'] = time.time()
-                return render_template('verify.html', 
-                                      success='¡Nuevo código enviado!', 
-                                      phone=phone)
-            except Exception as e:
-                logger.error(f"Error al reenviar código: {str(e)}")
-                return render_template('verify.html', 
-                                      error=f'Error al reenviar código: {str(e)}', 
-                                      phone=phone)
-        
+        # Manejar código normal
         user_code = request.form.get('verification_code', '').strip()
         # Validar que el código sea de 5 dígitos
         if not user_code or len(user_code) != 5 or not user_code.isdigit():
