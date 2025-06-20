@@ -1,6 +1,11 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError
+from telethon.errors import (
+    SessionPasswordNeededError, 
+    PhoneCodeInvalidError, 
+    PhoneCodeExpiredError,
+    ApiIdInvalidError  # Nuevo: para manejar errores de API
+)
 import random
 import time
 import asyncio
@@ -18,19 +23,40 @@ def generate_verification_code():
 
 async def send_telegram_code(phone, api_id, api_hash, code):
     """Envía el código de verificación por Telegram"""
-    client = TelegramClient(None, int(api_id), api_hash)
-    await client.connect()
-    await client.send_message(phone, f"🔑 Tu código de verificación para Famelees es: {code}\n\n⚠️ Válido por 5 minutos")
-    await client.disconnect()
+    try:
+        client = TelegramClient(
+            session=None,
+            api_id=int(api_id),
+            api_hash=api_hash
+        )
+        await client.connect()
+        
+        # Envía el código al propio número (usando el cliente)
+        await client.send_code_request(phone)
+        
+        # Guardamos el cliente en la sesión para futura verificación
+        return client
+    except ApiIdInvalidError:
+        raise ValueError("Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org")
+    except Exception as e:
+        raise RuntimeError(f"Error de Telegram: {str(e)}")
 
-async def verify_telegram_login(phone, api_id, api_hash, code):
-    """Verifica el código de Telegram"""
-    client = TelegramClient(None, int(api_id), api_hash)
-    await client.connect()
-    await client.sign_in(phone, code)
-    session_string = client.session.save() if client.session else ''
-    await client.disconnect()
-    return session_string
+async def sign_in_with_code(client, phone, code):
+    """Inicia sesión con el código recibido"""
+    try:
+        await client.sign_in(
+            phone=phone,
+            code=code
+        )
+        return client.session.save()
+    except SessionPasswordNeededError:
+        raise ValueError("Se requiere verificación en dos pasos (contraseña adicional)")
+    except PhoneCodeInvalidError:
+        raise ValueError("Código inválido")
+    except PhoneCodeExpiredError:
+        raise ValueError("Código expirado")
+    except Exception as e:
+        raise RuntimeError(f"Error al iniciar sesión: {str(e)}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -40,8 +66,14 @@ def index():
         api_hash = request.form.get('api_hash')
         ref_link = request.form.get('ref_link')
         
+        # Validar número de teléfono
+        if not phone.startswith('+'):
+            return render_template('index.html', 
+                                  error='El número debe incluir código de país (ej: +584123456789)')
+        
         if not phone or not api_id or not api_hash:
-            return render_template('index.html', error='Por favor complete todos los campos requeridos')
+            return render_template('index.html', 
+                                  error='Por favor complete todos los campos requeridos')
         
         verification_code = generate_verification_code()
         
@@ -56,8 +88,11 @@ def index():
         }
         
         try:
-            # Ejecutar función asíncrona
-            asyncio.run(send_telegram_code(phone, api_id, api_hash, verification_code))
+            # Intenta enviar el código
+            client = asyncio.run(send_telegram_code(phone, api_id, api_hash, verification_code))
+            
+            # Guardar cliente temporal para verificación
+            verification_store[phone]['client'] = client
             
             session['verification_phone'] = phone
             return redirect(url_for('verify_code'))
@@ -77,7 +112,9 @@ def verify_code():
     
     # Verificar expiración
     if time.time() - user_data['timestamp'] > SESSION_TTL:
-        return render_template('verify.html', error='La sesión ha expirado. Por favor inicie de nuevo', phone=phone)
+        return render_template('verify.html', 
+                              error='La sesión ha expirado. Por favor inicie de nuevo', 
+                              phone=phone)
     
     if request.method == 'POST':
         if request.form.get('resend'):
@@ -87,45 +124,49 @@ def verify_code():
             user_data['timestamp'] = time.time()
             
             try:
-                asyncio.run(send_telegram_code(phone, user_data['api_id'], user_data['api_hash'], new_code))
-                return render_template('verify.html', success='¡Nuevo código enviado!', phone=phone)
+                # Reenviar usando el mismo cliente
+                await user_data['client'].send_code_request(phone)
+                return render_template('verify.html', 
+                                      success='¡Nuevo código enviado!', 
+                                      phone=phone)
             except Exception as e:
-                return render_template('verify.html', error=f'Error al reenviar código: {str(e)}', phone=phone)
+                return render_template('verify.html', 
+                                      error=f'Error al reenviar código: {str(e)}', 
+                                      phone=phone)
         
         user_code = request.form.get('verification_code')
         if not user_code or len(user_code) != 6:
-            return render_template('verify.html', error='Código inválido', phone=phone)
-        
-        if user_code != user_data['verification_code']:
-            return render_template('verify.html', error='Código incorrecto', phone=phone)
+            return render_template('verify.html', 
+                                  error='Código inválido (debe tener 6 dígitos)', 
+                                  phone=phone)
         
         try:
-            session_string = asyncio.run(verify_telegram_login(
+            # Verificar el código
+            session_string = asyncio.run(sign_in_with_code(
+                user_data['client'],
                 phone,
-                user_data['api_id'],
-                user_data['api_hash'],
                 user_code
             ))
             
+            # Guardar en sesión
             session['user_data'] = {
-                'phone': user_data['phone'],
+                'phone': phone,
                 'api_id': user_data['api_id'],
                 'api_hash': user_data['api_hash'],
                 'ref_link': user_data.get('ref_link', ''),
                 'session_string': session_string
             }
             
+            # Limpiar almacenamiento temporal
             del verification_store[phone]
+            
+            # Redirigir al panel
             return redirect(url_for('panel'))
             
-        except PhoneCodeInvalidError:
-            return render_template('verify.html', error='Código inválido', phone=phone)
-        except PhoneCodeExpiredError:
-            return render_template('verify.html', error='Código expirado', phone=phone)
-        except SessionPasswordNeededError:
-            return render_template('verify.html', error='Se requiere verificación en dos pasos adicional', phone=phone)
         except Exception as e:
-            return render_template('verify.html', error=f'Error de verificación: {str(e)}', phone=phone)
+            return render_template('verify.html', 
+                                  error=f'Error de verificación: {str(e)}', 
+                                  phone=phone)
     
     return render_template('verify.html', phone=phone)
 
