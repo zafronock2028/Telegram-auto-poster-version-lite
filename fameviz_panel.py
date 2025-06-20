@@ -109,7 +109,7 @@ def index():
             
         except Exception as e:
             logger.error(f"Error al enviar código: {str(e)}")
-            return render_template('index.html', error=f'Error al enviar código: {str(e)}')
+            return render_template('index.html', error=f'Error al iniciar sesión: {str(e)}')
     
     return render_template('index.html')
 
@@ -124,7 +124,7 @@ def verify_code():
     # Verificar expiración
     if time.time() - user_data['timestamp'] > SESSION_TTL:
         try:
-            await user_data['client'].disconnect()
+            asyncio.run(user_data['client'].disconnect())
         except:
             pass
         del verification_store[phone]
@@ -171,7 +171,7 @@ def verify_code():
             
             # Limpiar y desconectar cliente
             try:
-                await user_data['client'].disconnect()
+                asyncio.run(user_data['client'].disconnect())
             except:
                 pass
             del verification_store[phone]
