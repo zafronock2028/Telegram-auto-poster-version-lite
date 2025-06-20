@@ -38,9 +38,6 @@ def run_async(coro):
     loop = get_event_loop()
     return loop.run_until_complete(coro)
 
-def generate_verification_code():
-    return str(random.randint(100000, 999999))
-
 async def create_telegram_client(api_id, api_hash):
     """Crea y conecta un cliente de Telegram"""
     client = TelegramClient(
@@ -209,7 +206,24 @@ def panel():
         return redirect(url_for('index'))
     
     # Aquí va la lógica de tu panel de control
-    return render_template('panel.html', user=session['user_data'])
+    # EJEMPLO: datos dummy para pruebas
+    return render_template('panel.html', 
+                          user=session['user_data'],
+                          publicando=False,
+                          now=time.ctime(),
+                          estado="Listo para publicar",
+                          detalles=["Sistema inicializado ✅"],
+                          total_grupos=15,
+                          textos=enumerate(TEXTOS_PREDEFINIDOS),
+                          imagenes=["imagen1.png", "imagen2.jpg"],
+                          referral=session['user_data'].get('ref_link', ''),
+                          mensaje_pub="Mensaje de prueba")
+
+# Importar textos predefinidos
+try:
+    from fameviz_textos import TEXTOS_PREDEFINIDOS
+except ImportError:
+    TEXTOS_PREDEFINIDOS = ["Texto predeterminado {{codigo}}"]
 
 @app.route('/logout')
 def logout():
