@@ -31,10 +31,7 @@ async def send_telegram_code(phone, api_id, api_hash):
             api_hash=api_hash
         )
         await client.connect()
-        
-        # Enviar solicitud de código
         await client.send_code_request(phone)
-        
         return client
     except ApiIdInvalidError:
         raise ValueError("Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org")
@@ -84,7 +81,7 @@ def index():
                 'api_id': api_id,
                 'api_hash': api_hash,
                 'ref_link': ref_link,
-                'client': client,  # Guardamos el cliente para la verificación
+                'client': client,
                 'timestamp': time.time()
             }
             
@@ -106,7 +103,6 @@ def verify_code():
     
     # Verificar expiración
     if time.time() - user_data['timestamp'] > SESSION_TTL:
-        # Limpiar la sesión expirada
         del verification_store[phone]
         return render_template('verify.html', 
                               error='La sesión ha expirado. Por favor inicie de nuevo', 
@@ -116,8 +112,8 @@ def verify_code():
         if request.form.get('resend'):
             try:
                 # Reenviar usando el mismo cliente
-                await user_data['client'].send_code_request(phone)
-                user_data['timestamp'] = time.time()  # Resetear el tiempo
+                asyncio.run(user_data['client'].send_code_request(phone))
+                user_data['timestamp'] = time.time()
                 return render_template('verify.html', 
                                       success='¡Nuevo código enviado!', 
                                       phone=phone)
