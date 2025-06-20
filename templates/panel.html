@@ -2,347 +2,73 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FameViz - Panel de Control</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Panel de Control - FameViz</title>
     <style>
-        :root {
-            --primary: #4e54c8;
-            --secondary: #8f94fb;
-            --success: #38b000;
-            --danger: #d00000;
-            --dark: #212529;
-        }
-        
         body {
-            background: #f5f7fb;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .dashboard-header {
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            color: white;
-            padding: 20px 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .status-card {
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            transition: transform 0.3s ease;
-            height: 100%;
-        }
-        
-        .status-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .card-header {
-            font-weight: 600;
-            background: rgba(255,255,255,0.1);
-        }
-        
-        .status-active {
-            background: linear-gradient(to right, var(--success), #7ae582);
-            color: white;
-        }
-        
-        .status-inactive {
-            background: linear-gradient(to right, var(--danger), #ff6b6b);
-            color: white;
-        }
-        
-        .status-processing {
-            background: linear-gradient(to right, #ff9e00, #ffea00);
-            color: var(--dark);
-        }
-        
-        .progress-container {
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            background: white;
-        }
-        
-        .progress-item {
-            padding: 8px 12px;
-            border-left: 3px solid var(--primary);
-            margin-bottom: 8px;
-            background: #f8f9fa;
-            border-radius: 0 4px 4px 0;
-        }
-        
-        .progress-item.success {
-            border-left-color: var(--success);
-        }
-        
-        .progress-item.error {
-            border-left-color: var(--danger);
-        }
-        
-        .message-preview {
-            white-space: pre-line;
-            padding: 15px;
-            background: #eef2f7;
-            border-radius: 8px;
-            border: 1px dashed #a0aec0;
-            min-height: 150px;
-        }
-        
-        .btn-action {
-            padding: 10px 20px;
-            font-weight: 600;
-            border-radius: 50px;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin: 5px 0;
-        }
-        
-        .btn-start {
-            background: linear-gradient(to right, var(--success), #7ae582);
-            border: none;
-        }
-        
-        .btn-stop {
-            background: linear-gradient(to right, var(--danger), #ff6b6b);
-            border: none;
-        }
-        
-        .btn-settings {
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            border: none;
-        }
-        
-        .btn-action:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        
-        .stat-card {
-            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
             padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
             border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logout-btn {
+            background: linear-gradient(to right, #e74c3c, #c0392b);
             color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .panel-content {
+            text-align: center;
+            padding: 50px 0;
+        }
+        .panel-content h2 {
+            color: #3498db;
             margin-bottom: 20px;
-        }
-        
-        .stat-1 {
-            background: linear-gradient(to right, #5c7cfa, #748ffc);
-        }
-        
-        .stat-2 {
-            background: linear-gradient(to right, #20c997, #38d9a9);
-        }
-        
-        .stat-3 {
-            background: linear-gradient(to right, #ff922b, #ffb347);
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-        }
-        
-        .stat-label {
-            font-size: 1rem;
-            opacity: 0.9;
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="dashboard-header">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1><i class="fas fa-rocket me-2"></i>FameViz Control Panel</h1>
-                    <p class="mb-0">Sistema automatizado de publicaciones</p>
-                </div>
-                <div class="text-end">
-                    <p class="mb-0"><strong>Estado:</strong> 
-                        {% if publicando %}
-                            <span class="badge bg-warning">Publicando...</span>
-                        {% else %}
-                            <span class="badge bg-secondary">Inactivo</span>
-                        {% endif %}
-                    </p>
-                    <small>Última actualización: {{ now }}</small>
-                </div>
+    <div class="container">
+        <div class="header">
+            <h1>Panel de Control FameViz</h1>
+            <div class="user-info">
+                <span>{{ user }}</span>
+                <a href="/logout" class="logout-btn">Cerrar Sesión</a>
             </div>
         </div>
-    </div>
-
-    <div class="container py-4">
-        {% if error %}
-            <div class="alert alert-danger">{{ error }}</div>
-        {% endif %}
         
-        <div class="row">
-            <!-- Panel izquierdo: Estado y Progreso -->
-            <div class="col-lg-8">
-                <div class="card status-card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-sync-alt me-2"></i>Estado Actual</span>
-                        <span class="badge bg-primary">En tiempo real</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert 
-                            {% if 'Publicando' in estado %}alert-warning
-                            {% elif 'completada' in estado %}alert-success
-                            {% elif 'Error' in estado %}alert-danger
-                            {% else %}alert-info{% endif %}">
-                            <strong>{{ estado }}</strong>
-                        </div>
-                        
-                        <h5 class="mt-4"><i class="fas fa-tasks me-2"></i>Detalles del Progreso</h5>
-                        <div class="progress-container">
-                            {% for detalle in detalles %}
-                                <div class="progress-item 
-                                    {% if '✅' in detalle or 'Publicado' in detalle %}success
-                                    {% elif '❌' in detalle or 'Error' in detalle %}error{% endif %}">
-                                    {{ detalle }}
-                                </div>
-                            {% else %}
-                                <p class="text-muted">No hay actividad registrada aún</p>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="stat-card stat-1">
-                            <div class="stat-number">{{ total_grupos }}</div>
-                            <div class="stat-label">Grupos Disponibles</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="stat-card stat-2">
-                            <div class="stat-number">{{ textos|length }}</div>
-                            <div class="stat-label">Textos Predefinidos</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="stat-card stat-3">
-                            <div class="stat-number">{{ imagenes|length }}</div>
-                            <div class="stat-label">Imágenes Disponibles</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Panel derecho: Configuración -->
-            <div class="col-lg-4">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <i class="fas fa-cog me-2"></i>Configurar Publicación
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label class="form-label">Seleccionar Texto</label>
-                                <select class="form-select" name="texto_pred" required>
-                                    {% for idx, texto in textos %}
-                                        <option value="{{ idx }}">Texto #{{ idx + 1 }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Seleccionar Imagen (Opcional)</label>
-                                <select class="form-select" name="imagen_pred">
-                                    <option value="">Sin imagen</option>
-                                    {% for imagen in imagenes %}
-                                        <option value="{{ imagen }}">{{ imagen }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <button type="submit" name="configurar_publicacion" 
-                                    class="btn btn-settings btn-action">
-                                <i class="fas fa-save me-2"></i>Guardar Configuración
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <i class="fas fa-play-circle me-2"></i>Acciones
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            {% if not publicando %}
-                                <button type="submit" name="iniciar_publicacion" 
-                                        class="btn btn-start btn-action">
-                                    <i class="fas fa-play me-2"></i>Iniciar Publicación
-                                </button>
-                            {% else %}
-                                <button type="submit" name="detener_publicacion" 
-                                        class="btn btn-stop btn-action">
-                                    <i class="fas fa-stop me-2"></i>Detener Publicación
-                                </button>
-                            {% endif %}
-                        </form>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-link me-2"></i>Información de Referido
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Tu Enlace de Referido:</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="referral-link" 
-                                       value="{{ referral }}" readonly>
-                                <button class="btn btn-primary" type="button" 
-                                        onclick="copyReferral()">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4">
-                            <h6>Vista Previa:</h6>
-                            <div class="message-preview">
-                                {% if mensaje_pub %}
-                                    {{ mensaje_pub }}
-                                {% else %}
-                                    <p class="text-muted">Configura un mensaje para ver la vista previa</p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="panel-content">
+            <h2>Bienvenido al Panel de Control</h2>
+            <p>Aquí puedes gestionar tus publicaciones automáticas en Telegram.</p>
+            <p>Funcionalidad en desarrollo...</p>
         </div>
     </div>
-
-    <script>
-        function copyReferral() {
-            const copyText = document.getElementById("referral-link");
-            copyText.select();
-            copyText.setSelectionRange(0, 99999);
-            document.execCommand("copy");
-            
-            const originalText = copyText.value;
-            copyText.value = "¡Copiado!";
-            
-            setTimeout(() => {
-                copyText.value = originalText;
-            }, 2000);
-        }
-        
-        // Actualizar la página cada 60 segundos
-        setTimeout(() => {
-            window.location.reload();
-        }, 60000);
-    </script>
 </body>
 </html>
