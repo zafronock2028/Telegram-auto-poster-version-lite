@@ -13,6 +13,7 @@ import time
 import asyncio
 import os
 import logging
+import threading
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +25,18 @@ app.secret_key = os.environ.get('SECRET_KEY', 'fallback_secret_key_1234567890')
 # Almacenamiento temporal en memoria
 verification_store = {}
 SESSION_TTL = 300  # 5 minutos para códigos
+
+# Bucle de eventos por hilo
+thread_local = threading.local()
+
+def get_event_loop():
+    if not hasattr(thread_local, "loop"):
+        thread_local.loop = asyncio.new_event_loop()
+    return thread_local.loop
+
+def run_async(coro):
+    loop = get_event_loop()
+    return loop.run_until_complete(coro)
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
@@ -51,10 +64,10 @@ async def send_telegram_code(client, phone):
     except Exception as e:
         raise RuntimeError(f"Error de Telegram: {str(e)}")
 
-async def sign_in_with_code(client, code):
+async def sign_in_with_code(client, code, phone_code_hash):
     """Inicia sesión con el código recibido"""
     try:
-        await client.sign_in(code=code)
+        await client.sign_in(code=code, phone_code_hash=phone_code_hash)
         return client.session.save()
     except SessionPasswordNeededError:
         raise ValueError("Se requiere verificación en dos pasos (contraseña adicional)")
@@ -91,8 +104,8 @@ def index():
         
         try:
             # Crear cliente y enviar código
-            client = asyncio.run(create_telegram_client(api_id, api_hash))
-            asyncio.run(send_telegram_code(client, phone))
+            client = run_async(create_telegram_client(api_id, api_hash))
+            sent_code = run_async(send_telegram_code(client, phone))
             
             # Guardar datos temporalmente
             verification_store[phone] = {
@@ -101,6 +114,7 @@ def index():
                 'api_hash': api_hash,
                 'ref_link': ref_link,
                 'client': client,
+                'phone_code_hash': sent_code.phone_code_hash,
                 'timestamp': time.time()
             }
             
@@ -124,7 +138,7 @@ def verify_code():
     # Verificar expiración
     if time.time() - user_data['timestamp'] > SESSION_TTL:
         try:
-            asyncio.run(user_data['client'].disconnect())
+            run_async(user_data['client'].disconnect())
         except:
             pass
         del verification_store[phone]
@@ -136,7 +150,7 @@ def verify_code():
         if request.form.get('resend'):
             try:
                 # Reenviar código
-                asyncio.run(send_telegram_code(user_data['client'], phone))
+                run_async(send_telegram_code(user_data['client'], phone))
                 user_data['timestamp'] = time.time()
                 return render_template('verify.html', 
                                       success='¡Nuevo código enviado!', 
@@ -155,9 +169,10 @@ def verify_code():
         
         try:
             # Verificar el código
-            session_string = asyncio.run(sign_in_with_code(
+            session_string = run_async(sign_in_with_code(
                 user_data['client'],
-                user_code
+                user_code,
+                user_data['phone_code_hash']
             ))
             
             # Guardar en sesión
@@ -171,7 +186,7 @@ def verify_code():
             
             # Limpiar y desconectar cliente
             try:
-                asyncio.run(user_data['client'].disconnect())
+                run_async(user_data['client'].disconnect())
             except:
                 pass
             del verification_store[phone]
@@ -201,7 +216,7 @@ def logout():
     for phone in list(verification_store.keys()):
         try:
             client = verification_store[phone]['client']
-            asyncio.run(client.disconnect())
+            run_async(client.disconnect())
         except:
             pass
     verification_store.clear()
