@@ -2,36 +2,49 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError
 import random
-import json
 import time
+import asyncio
 
 app = Flask(__name__)
-app.secret_key = 'tu_clave_secreta_fuerte'
+app.secret_key = 'tu_clave_secreta_fuerte'  # Asegúrate de cambiar esto por tu clave real
 
-# Almacenamiento temporal en memoria (sin Redis)
+# Almacenamiento temporal en memoria
 verification_store = {}
 SESSION_TTL = 300  # 5 minutos para códigos
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
 
+async def send_telegram_code(phone, api_id, api_hash, code):
+    """Envía el código de verificación por Telegram (función asíncrona)"""
+    client = TelegramClient(None, int(api_id), api_hash)
+    await client.connect()
+    await client.send_message(phone, f"🔑 Tu código de verificación para Famelees es: {code}\n\n⚠️ Válido por 5 minutos")
+    await client.disconnect()
+
+async def verify_telegram_login(phone, api_id, api_hash, code):
+    """Verifica el código de Telegram (función asíncrona)"""
+    client = TelegramClient(None, int(api_id), api_hash)
+    await client.connect()
+    await client.sign_in(phone, code)
+    session_string = client.session.save() if client.session else ''
+    await client.disconnect()
+    return session_string
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        # Obtener datos del formulario
         phone = request.form.get('phone')
         api_id = request.form.get('api_id')
         api_hash = request.form.get('api_hash')
         ref_link = request.form.get('ref_link')
         
-        # Validar datos básicos
         if not phone or not api_id or not api_hash:
             return render_template('index.html', error='Por favor complete todos los campos requeridos')
         
-        # Generar código de verificación
         verification_code = generate_verification_code()
         
-        # Guardar datos temporalmente en memoria
+        # Guardar datos temporalmente
         verification_store[phone] = {
             'phone': phone,
             'api_id': api_id,
@@ -42,15 +55,9 @@ def index():
         }
         
         try:
-            # Crear cliente de Telegram
-            client = TelegramClient(None, int(api_id), api_hash)
+            # Ejecutar la función asíncrona desde un contexto síncrono
+            asyncio.run(send_telegram_code(phone, api_id, api_hash, verification_code))
             
-            # Conectar y enviar código de verificación
-            await client.connect()
-            await client.send_message(phone, f"🔑 Tu código de verificación para Famelees es: {verification_code}\n\n⚠️ Válido por 5 minutos")
-            await client.disconnect()
-            
-            # Redirigir a la página de verificación
             session['verification_phone'] = phone
             return redirect(url_for('verify_code'))
             
@@ -62,69 +69,52 @@ def index():
 @app.route('/verify', methods=['GET', 'POST'])
 def verify_code():
     phone = session.get('verification_phone')
-    if not phone:
+    if not phone or phone not in verification_store:
         return redirect(url_for('index'))
-    
-    # Verificar expiración de sesión
-    if phone not in verification_store or time.time() - verification_store[phone]['timestamp'] > SESSION_TTL:
-        return render_template('verify.html', error='La sesión ha expirado. Por favor inicie de nuevo', phone=phone)
     
     user_data = verification_store[phone]
     
+    # Verificar expiración
+    if time.time() - user_data['timestamp'] > SESSION_TTL:
+        return render_template('verify.html', error='La sesión ha expirado. Por favor inicie de nuevo', phone=phone)
+    
     if request.method == 'POST':
-        # Verificar si se solicita reenvío de código
-        if 'resend' in request.form:
+        if request.form.get('resend'):
             # Generar nuevo código
             new_code = generate_verification_code()
             user_data['verification_code'] = new_code
             user_data['timestamp'] = time.time()
-            verification_store[phone] = user_data
             
             try:
-                # Reenviar el nuevo código
-                client = TelegramClient(None, int(user_data['api_id']), user_data['api_hash'])
-                await client.connect()
-                await client.send_message(phone, f"🔄 Tu nuevo código de verificación es: {new_code}\n\n⚠️ Válido por 5 minutos")
-                await client.disconnect()
-                
+                asyncio.run(send_telegram_code(phone, user_data['api_id'], user_data['api_hash'], new_code))
                 return render_template('verify.html', success='¡Nuevo código enviado!', phone=phone)
-            
             except Exception as e:
                 return render_template('verify.html', error=f'Error al reenviar código: {str(e)}', phone=phone)
         
-        # Procesar verificación de código normal
         user_code = request.form.get('verification_code')
         if not user_code or len(user_code) != 6:
             return render_template('verify.html', error='Código inválido', phone=phone)
         
-        # Verificar el código
         if user_code != user_data['verification_code']:
             return render_template('verify.html', error='Código incorrecto', phone=phone)
         
         try:
-            # Crear sesión de Telegram
-            client = TelegramClient(None, int(user_data['api_id']), user_data['api_hash'])
-            await client.connect()
+            session_string = asyncio.run(verify_telegram_login(
+                phone,
+                user_data['api_id'],
+                user_data['api_hash'],
+                user_code
+            ))
             
-            # Verificar el código
-            await client.sign_in(user_data['phone'], code=user_code)
-            
-            # Guardar datos de sesión
             session['user_data'] = {
                 'phone': user_data['phone'],
                 'api_id': user_data['api_id'],
                 'api_hash': user_data['api_hash'],
                 'ref_link': user_data.get('ref_link', ''),
-                'session_string': client.session.save() if client.session else ''
+                'session_string': session_string
             }
             
-            await client.disconnect()
-            
-            # Eliminar datos temporales
-            if phone in verification_store:
-                del verification_store[phone]
-            
-            # Redirigir al panel de control
+            del verification_store[phone]
             return redirect(url_for('panel'))
             
         except PhoneCodeInvalidError:
@@ -144,8 +134,6 @@ def panel():
         return redirect(url_for('index'))
     
     # Aquí va la lógica de tu panel de control
-    # Puedes acceder a los datos del usuario con session['user_data']
-    
     return render_template('panel.html', user=session['user_data'])
 
 @app.route('/logout')
