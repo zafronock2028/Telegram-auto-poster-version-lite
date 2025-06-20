@@ -7,4 +7,4 @@ pip install -r requirements.txt
 echo "¡Build completado exitosamente!"
 
 # Iniciar la aplicación
-exec gunicorn --bind 0.0.0.0:$PORT fameviz_panel:app
+exec gunicorn --bind 0.0.0.0:$PORT --worker-class gevent --workers 4 fameviz_panel:app
