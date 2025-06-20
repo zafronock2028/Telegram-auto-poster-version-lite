@@ -29,7 +29,7 @@ def run_async(coro):
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(coro)
 
-async def send_telegram_code(api_id, api_hash, phone):
+async def send_telegram_code_async(api_id, api_hash, phone):
     """Envía el código de verificación por Telegram (SMS)"""
     try:
         logger.info(f"Intentando enviar SMS a: {phone}")
@@ -57,14 +57,14 @@ def index():
             return render_template('index.html', error='Datos inválidos')
         
         try:
-            client, phone_code_hash = run_async(send_telegram_code(api_id, api_hash, phone))
+            client, phone_code_hash = run_async(send_telegram_code_async(api_id, api_hash, phone))
             
             # Guardar datos en sesión
             session['phone'] = phone
             session['api_id'] = api_id
             session['api_hash'] = api_hash
             session['phone_code_hash'] = phone_code_hash
-            session['client'] = client.session.save()  # Guardar solo la sesión
+            session['client_session'] = client.session.save()  # Guardar solo la sesión
             session['timestamp'] = time.time()
             
             logger.info(f"Datos guardados para: {phone}")
@@ -89,7 +89,7 @@ def verify_code():
         if 'resend' in request.form:
             try:
                 logger.info(f"Reenviando SMS a: {phone}")
-                client, phone_code_hash = run_async(send_telegram_code(
+                client, phone_code_hash = run_async(send_telegram_code_async(
                     session['api_id'], 
                     session['api_hash'], 
                     phone
@@ -108,19 +108,18 @@ def verify_code():
         
         try:
             logger.info(f"Verificando código para: {phone}")
-            client = TelegramClient(None, int(session['api_id']), session['api_hash'])
-            await client.connect()
             
-            # Restaurar sesión si existe
-            if 'client' in session:
-                client.session.set_session_string(session['client'])
+            # Crear cliente y restaurar sesión
+            client = TelegramClient(None, int(session['api_id']), session['api_hash'])
+            client.session = TelegramClient.StringSession(session['client_session'])
+            run_async(client.connect())
             
             # Verificar código
-            await client.sign_in(
+            run_async(client.sign_in(
                 phone=phone,
                 code=user_code,
                 phone_code_hash=session['phone_code_hash']
-            )
+            ))
             
             # Guardar sesión autenticada
             session['authenticated'] = True
