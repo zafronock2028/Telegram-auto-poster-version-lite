@@ -1,3 +1,4 @@
 Flask==2.3.2
 telethon==1.32.1
 gunicorn==21.2.0
+gevent==24.2.1  # Añadimos gevent explícitamente
