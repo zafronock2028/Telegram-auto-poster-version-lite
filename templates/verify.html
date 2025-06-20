@@ -2,116 +2,23 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Verificación en Dos Pasos</title>
+    <title>Verificación</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 500px;
-            margin: 50px auto;
-            padding: 30px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        .code-inputs {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        .code-input {
-            width: 50px;
-            height: 60px;
-            text-align: center;
-            font-size: 28px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-        }
-        .code-input:focus {
-            border-color: #007bff;
-            outline: none;
-        }
-        .btn-container {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .btn {
-            padding: 12px 20px;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .btn-primary {
-            background-color: #007bff;
-        }
-        .btn-primary:hover {
-            background-color: #0069d9;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-        }
-        .btn-secondary:hover {
-            background-color: #5a6268;
-        }
-        .error {
-            color: #dc3545;
-            padding: 10px;
-            background-color: #f8d7da;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .success {
-            color: #155724;
-            padding: 10px;
-            background-color: #d4edda;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .countdown {
-            margin: 15px 0;
-            font-size: 14px;
-            color: #6c757d;
-        }
-        .password-section {
-            margin-top: 20px;
-            display: none;
-        }
-        .password-input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-        }
-        .form-note {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #6c757d;
-        }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 500px; margin: 50px auto; padding: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        h1 { color: #333; }
+        .error { color: #dc3545; padding: 10px; background: #f8d7da; border-radius: 4px; margin-bottom: 20px; }
+        .success { color: #155724; padding: 10px; background: #d4edda; border-radius: 4px; margin-bottom: 20px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; margin: 10px 0; text-align: center; }
+        button { padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0069d9; }
+        .btn-resend { background: #6c757d; }
+        .btn-resend:hover { background: #5a6268; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Verificación en Dos Pasos</h1>
-        
-        <p>Hemos enviado un código de verificación a tu cuenta de Telegram.</p>
-        <p>Por favor ingrésalo a continuación:</p>
+        <h1>Verificación</h1>
         
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -121,119 +28,13 @@
         <div class="success">{{ success }}</div>
         {% endif %}
         
-        <form method="POST" action="/verify" id="verification-form">
-            <!-- Sección de código normal -->
-            <div id="code-section" {% if requires_2fa %}style="display:none;"{% endif %}>
-                <div class="code-inputs">
-                    <input type="text" class="code-input" name="code1" maxlength="1" autofocus>
-                    <input type="text" class="code-input" name="code2" maxlength="1">
-                    <input type="text" class="code-input" name="code3" maxlength="1">
-                    <input type="text" class="code-input" name="code4" maxlength="1">
-                    <input type="text" class="code-input" name="code5" maxlength="1">
-                </div>
-                
-                <input type="hidden" name="verification_code" id="verification_code">
-                
-                <div class="form-note">
-                    El código de 5 dígitos fue enviado por Telegram
-                </div>
-            </div>
-            
-            <!-- Sección de 2FA -->
-            <div id="password-section" class="password-section" {% if requires_2fa %}style="display:block;"{% endif %}>
-                <p>Tu cuenta requiere verificación en dos pasos. Ingresa tu contraseña:</p>
-                <input type="password" name="password" class="password-input" placeholder="Contraseña 2FA" required>
-            </div>
-            
-            <div class="btn-container">
-                <button type="submit" class="btn btn-primary" id="submit-btn">
-                    {% if requires_2fa %}Verificar Contraseña{% else %}Verificar Código{% endif %}
-                </button>
-                {% if not requires_2fa %}
-                <button type="submit" name="resend" value="true" class="btn btn-secondary">
-                    Reenviar Código
-                </button>
-                {% endif %}
-            </div>
+        <p>Ingresa el código de 5 dígitos enviado por SMS:</p>
+        
+        <form method="POST">
+            <input type="text" name="code" pattern="\d{5}" title="5 dígitos" required>
+            <button type="submit">Verificar</button>
+            <button type="submit" name="resend" class="btn-resend">Reenviar SMS</button>
         </form>
-        
-        <div class="countdown" id="countdown">Tiempo restante: 5:00</div>
     </div>
-
-    <script>
-        // Combinar los 5 campos en un solo código
-        const codeInputs = document.querySelectorAll('.code-input');
-        const verificationInput = document.getElementById('verification_code');
-        const form = document.getElementById('verification-form');
-        
-        function updateVerificationCode() {
-            verificationInput.value = Array.from(codeInputs).map(i => i.value).join('');
-        }
-        
-        codeInputs.forEach((input, index) => {
-            input.addEventListener('input', () => {
-                if (input.value.length === 1 && index < 4) {
-                    codeInputs[index + 1].focus();
-                }
-                updateVerificationCode();
-            });
-            
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Backspace' && input.value === '' && index > 0) {
-                    codeInputs[index - 1].focus();
-                }
-            });
-        });
-        
-        // Actualizar código oculto al cargar
-        updateVerificationCode();
-        
-        // Contador regresivo
-        let timeLeft = 300; // 5 minutos en segundos
-        const countdownElement = document.getElementById('countdown');
-        
-        function updateCountdown() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            countdownElement.textContent = `Tiempo restante: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-            
-            if (timeLeft > 0) {
-                timeLeft--;
-                setTimeout(updateCountdown, 1000);
-            } else {
-                countdownElement.textContent = '¡El código ha expirado!';
-                form.submit(); // Enviar automáticamente para recargar
-            }
-        }
-        
-        updateCountdown();
-        
-        // Mostrar sección de 2FA si hay error
-        {% if requires_2fa %}
-            document.getElementById('code-section').style.display = 'none';
-            document.getElementById('password-section').style.display = 'block';
-            document.getElementById('submit-btn').textContent = 'Verificar Contraseña';
-        {% endif %}
-        
-        // Prevenir envío doble
-        let isSubmitting = false;
-        form.addEventListener('submit', (e) => {
-            if (isSubmitting) {
-                e.preventDefault();
-                return;
-            }
-            
-            isSubmitting = true;
-            const submitBtn = document.getElementById('submit-btn');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Procesando...';
-            submitBtn.style.opacity = '0.7';
-            
-            // Actualizar código antes de enviar
-            if (!{% if requires_2fa %}true{% else %}false{% endif %}) {
-                updateVerificationCode();
-            }
-        });
-    </script>
 </body>
 </html>
