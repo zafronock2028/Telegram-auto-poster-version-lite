@@ -21,6 +21,7 @@
         h1 {
             text-align: center;
             color: #333;
+            margin-bottom: 20px;
         }
         .form-group {
             margin-bottom: 20px;
@@ -49,9 +50,14 @@
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #0069d9;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
         }
         .error {
             color: #dc3545;
@@ -71,6 +77,13 @@
             margin-top: 5px;
             display: none;
         }
+        .form-note {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #eef2f7;
+            border-radius: 4px;
+            font-size: 14px;
+        }
     </style>
     <script>
         function validatePhone() {
@@ -80,6 +93,13 @@
                 return false;
             }
             document.getElementById('phone-error').style.display = 'none';
+            return true;
+        }
+        
+        function preventDoubleSubmit() {
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.textContent = 'Enviando código...';
             return true;
         }
     </script>
@@ -92,7 +112,7 @@
         <div class="error">{{ error }}</div>
         {% endif %}
         
-        <form method="POST" action="/" onsubmit="return validatePhone()">
+        <form method="POST" action="/" onsubmit="return validatePhone() && preventDoubleSubmit()">
             <div class="form-group">
                 <label for="phone">Número de Teléfono de Telegram</label>
                 <input type="tel" id="phone" name="phone" required 
@@ -119,7 +139,16 @@
                 <input type="text" id="ref_link" name="ref_link" placeholder="Tu link de referencia de Famelees">
             </div>
             
-            <button type="submit">Iniciar Sesión</button>
+            <button type="submit" id="login-btn">Iniciar Sesión</button>
+            
+            <div class="form-note">
+                <strong>Nota:</strong> Si no recibes el código de verificación, intenta:
+                <ul>
+                    <li>Verificar que el número es correcto y tiene código de país</li>
+                    <li>Esperar unos minutos e intentar de nuevo</li>
+                    <li>Usar un número diferente si persiste el problema</li>
+                </ul>
+            </div>
         </form>
     </div>
 </body>
