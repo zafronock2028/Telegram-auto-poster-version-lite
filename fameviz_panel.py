@@ -51,15 +51,32 @@ async def create_telegram_client(api_id, api_hash):
 async def send_telegram_code(client, phone):
     """Envía el código de verificación por Telegram"""
     try:
-        return await client.send_code_request(phone)
+        logger.info(f"Enviando código a: {phone}")
+        # Intentar primero con el método por defecto (push/app), si falla forzar SMS
+        try:
+            sent_code = await client.send_code_request(phone)
+            logger.info(f"Código enviado por método por defecto")
+        except Exception as e:
+            logger.warning(f"Error con método por defecto, forzando SMS: {str(e)}")
+            sent_code = await client.send_code_request(phone, force_sms=True)
+            logger.info(f"Código enviado por SMS")
+        return sent_code
     except ApiIdInvalidError:
-        raise ValueError("Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org")
+        error_msg = "Credenciales de API inválidas. Verifica tu API ID y API Hash en my.telegram.org"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     except PhoneNumberInvalidError:
-        raise ValueError("Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)")
+        error_msg = "Número de teléfono inválido. Asegúrate de incluir el código de país (ej: +584123456789)"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     except FloodWaitError as e:
-        raise ValueError(f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente")
+        error_msg = f"Demasiados intentos. Por favor espera {e.seconds} segundos antes de intentar nuevamente"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     except Exception as e:
-        raise RuntimeError(f"Error de Telegram: {str(e)}")
+        error_msg = f"Error de Telegram al enviar código: {str(e)}"
+        logger.exception(error_msg)  # Registrar el traceback completo
+        raise RuntimeError(error_msg)
 
 async def sign_in_with_code(client, code, phone_code_hash):
     """Inicia sesión con el código recibido"""
@@ -160,9 +177,10 @@ def verify_code():
                                       phone=phone)
         
         user_code = request.form.get('verification_code', '').strip()
-        if not user_code or len(user_code) != 6 or not user_code.isdigit():
+        # Validar que el código sea de 5 dígitos
+        if not user_code or len(user_code) != 5 or not user_code.isdigit():
             return render_template('verify.html', 
-                                  error='Código inválido (debe tener 6 dígitos)', 
+                                  error='Código inválido (debe tener 5 dígitos)', 
                                   phone=phone)
         
         try:
