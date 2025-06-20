@@ -78,6 +78,18 @@
             font-size: 14px;
             color: #6c757d;
         }
+        .password-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .password-input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -96,18 +108,28 @@
         {% endif %}
         
         <form method="POST" action="/verify">
-            <div class="code-inputs">
-                <input type="text" class="code-input" name="code1" maxlength="1" autofocus>
-                <input type="text" class="code-input" name="code2" maxlength="1">
-                <input type="text" class="code-input" name="code3" maxlength="1">
-                <input type="text" class="code-input" name="code4" maxlength="1">
-                <input type="text" class="code-input" name="code5" maxlength="1">
+            <!-- Sección de código normal -->
+            <div id="code-section" {% if requires_2fa %}style="display:none;"{% endif %}>
+                <div class="code-inputs">
+                    <input type="text" class="code-input" name="code1" maxlength="1" autofocus>
+                    <input type="text" class="code-input" name="code2" maxlength="1">
+                    <input type="text" class="code-input" name="code3" maxlength="1">
+                    <input type="text" class="code-input" name="code4" maxlength="1">
+                    <input type="text" class="code-input" name="code5" maxlength="1">
+                </div>
+                
+                <input type="hidden" name="verification_code" id="verification_code">
+                
+                <button type="submit">Verificar Código</button>
+                <button type="button" class="resend-btn" onclick="resendCode()">Reenviar Código</button>
             </div>
             
-            <input type="hidden" name="verification_code" id="verification_code">
-            
-            <button type="submit">Verificar Código</button>
-            <button type="button" class="resend-btn" onclick="resendCode()">Reenviar Código</button>
+            <!-- Sección de 2FA -->
+            <div id="password-section" class="password-section" {% if requires_2fa %}style="display:block;"{% endif %}>
+                <p>Tu cuenta requiere verificación en dos pasos. Ingresa tu contraseña:</p>
+                <input type="password" name="password" class="password-input" placeholder="Contraseña 2FA" required>
+                <button type="submit">Verificar Contraseña</button>
+            </div>
         </form>
         
         <div class="countdown" id="countdown">Tiempo restante: 5:00</div>
@@ -169,6 +191,12 @@
         }
         
         updateCountdown();
+        
+        // Mostrar sección de 2FA si hay error
+        {% if requires_2fa %}
+            document.getElementById('code-section').style.display = 'none';
+            document.getElementById('password-section').style.display = 'block';
+        {% endif %}
     </script>
 </body>
 </html>
