@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 from telethon import TelegramClient
+from telethon.sync import sync  # Importar sync para manejar operaciones asíncronas
 from telethon.errors import (
     SessionPasswordNeededError, 
     PhoneCodeInvalidError, 
@@ -8,7 +9,6 @@ from telethon.errors import (
     PhoneNumberInvalidError,
     FloodWaitError
 )
-import asyncio
 import os
 import logging
 import time
@@ -28,27 +28,20 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 # Almacenamiento temporal en memoria
 SESSION_TTL = 300  # 5 minutos para códigos
 
-def run_async(coro):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
-
-async def send_telegram_code(api_id, api_hash, phone):
+def send_telegram_code(api_id, api_hash, phone):
     """Envía el código de verificación por Telegram (SMS)"""
     try:
         logger.info(f"Enviando SMS a: {phone}")
         
-        # Crear cliente sin sesión
-        client = TelegramClient(
+        # Usamos sync para manejar la operación asíncrona
+        client = sync(TelegramClient)(
             session=None,
             api_id=int(api_id),
             api_hash=api_hash
         )
         
-        await client.connect()
-        
         # FORZAR SMS SIEMPRE
-        result = await client.send_code_request(phone, force_sms=True)
+        result = client.send_code_request(phone, force_sms=True)
         logger.info(f"Resultado de envío de SMS: {result}")
         
         return client, result.phone_code_hash
@@ -73,7 +66,7 @@ def index():
             return render_template('index.html', error='Datos inválidos. Asegúrate de usar un número con código de país (+...) y API válida.')
         
         try:
-            client, phone_code_hash = run_async(send_telegram_code(api_id, api_hash, phone))
+            client, phone_code_hash = send_telegram_code(api_id, api_hash, phone)
             
             # Guardar datos en sesión
             session['phone'] = phone
@@ -102,11 +95,11 @@ def verify_code():
         # Manejar reenvío
         if 'resend' in request.form:
             try:
-                client, phone_code_hash = run_async(send_telegram_code(
+                client, phone_code_hash = send_telegram_code(
                     session['api_id'], 
                     session['api_hash'], 
                     phone
-                ))
+                )
                 session['phone_code_hash'] = phone_code_hash
                 session['timestamp'] = time.time()
                 return render_template('verify.html', success='¡Nuevo código enviado!')
@@ -119,8 +112,8 @@ def verify_code():
             return render_template('verify.html', error='Código inválido. Debe tener 5 dígitos.')
         
         try:
-            # Crear cliente y restaurar sesión
-            client = TelegramClient(
+            # Crear cliente y restaurar sesión usando sync
+            client = sync(TelegramClient)(
                 session=None,
                 api_id=int(session['api_id']),
                 api_hash=session['api_hash']
@@ -128,10 +121,10 @@ def verify_code():
             
             # Restaurar sesión
             client.session = TelegramClient.StringSession(session['client_session'])
-            run_async(client.connect())
+            client.connect()
             
-            # Verificar código
-            await client.sign_in(
+            # Verificar código usando sign_in de forma síncrona
+            client.sign_in(
                 phone=phone,
                 code=user_code,
                 phone_code_hash=session['phone_code_hash']
@@ -165,4 +158,4 @@ def logout():
     return redirect('/')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
