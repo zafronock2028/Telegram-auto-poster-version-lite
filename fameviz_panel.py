@@ -67,7 +67,7 @@ async def send_telegram_code(client, phone):
 async def sign_in_with_code(client, code, phone_code_hash):
     """Inicia sesión con el código recibido"""
     try:
-        await client.sign_in(code=code, phone_code_hash=phone_code_hash)
+        await client.sign_in(phone=client._phone, code=code, phone_code_hash=phone_code_hash)
         return client.session.save()
     except SessionPasswordNeededError:
         raise ValueError("Se requiere verificación en dos pasos (contraseña adicional)")
@@ -150,7 +150,8 @@ def verify_code():
         if request.form.get('resend'):
             try:
                 # Reenviar código
-                run_async(send_telegram_code(user_data['client'], phone))
+                sent_code = run_async(send_telegram_code(user_data['client'], phone))
+                user_data['phone_code_hash'] = sent_code.phone_code_hash
                 user_data['timestamp'] = time.time()
                 return render_template('verify.html', 
                                       success='¡Nuevo código enviado!', 
