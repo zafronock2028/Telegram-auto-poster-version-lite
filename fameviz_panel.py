@@ -4,9 +4,10 @@ from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, P
 import random
 import time
 import asyncio
+import os
 
 app = Flask(__name__)
-app.secret_key = 'tu_clave_secreta_fuerte'  # Asegúrate de cambiar esto por tu clave real
+app.secret_key = os.environ.get('SECRET_KEY', 'fallback_secret_key')
 
 # Almacenamiento temporal en memoria
 verification_store = {}
@@ -16,14 +17,14 @@ def generate_verification_code():
     return str(random.randint(100000, 999999))
 
 async def send_telegram_code(phone, api_id, api_hash, code):
-    """Envía el código de verificación por Telegram (función asíncrona)"""
+    """Envía el código de verificación por Telegram"""
     client = TelegramClient(None, int(api_id), api_hash)
     await client.connect()
     await client.send_message(phone, f"🔑 Tu código de verificación para Famelees es: {code}\n\n⚠️ Válido por 5 minutos")
     await client.disconnect()
 
 async def verify_telegram_login(phone, api_id, api_hash, code):
-    """Verifica el código de Telegram (función asíncrona)"""
+    """Verifica el código de Telegram"""
     client = TelegramClient(None, int(api_id), api_hash)
     await client.connect()
     await client.sign_in(phone, code)
@@ -55,7 +56,7 @@ def index():
         }
         
         try:
-            # Ejecutar la función asíncrona desde un contexto síncrono
+            # Ejecutar función asíncrona
             asyncio.run(send_telegram_code(phone, api_id, api_hash, verification_code))
             
             session['verification_phone'] = phone
